@@ -1,0 +1,38 @@
+name: wasel
+
+services:
+  postgres:
+    image: postgis/postgis:18-3.6
+    environment:
+      POSTGRES_DB: wasel
+      POSTGRES_USER: wasel
+      POSTGRES_PASSWORD: wasel_local_password
+    ports:
+      - '5432:5432'
+    volumes:
+      - wasel-postgres:/var/lib/postgresql
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U wasel -d wasel']
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
+    restart: unless-stopped
+
+  redis:
+    image: redis:8.8.0-alpine3.23
+    command: ['redis-server', '--appendonly', 'yes', '--save', '60', '1']
+    ports:
+      - '6379:6379'
+    volumes:
+      - wasel-redis:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+
+volumes:
+  wasel-postgres:
+  wasel-redis:

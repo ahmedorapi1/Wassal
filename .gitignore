@@ -1,0 +1,16 @@
+node_modules/
+.turbo/
+dist/
+coverage/
+.next/
+.expo/
+.data/
+web-build/
+*.tsbuildinfo
+packages/database/generated/
+.env
+.env.*
+!.env.example
+*.log
+.DS_Store
+Thumbs.db

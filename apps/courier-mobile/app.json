@@ -1,0 +1,18 @@
+{
+  "expo": {
+    "name": "Wasel Courier",
+    "slug": "wasel-courier",
+    "version": "0.0.1",
+    "orientation": "portrait",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.wasel.courier"
+    },
+    "android": {
+      "package": "com.wasel.courier"
+    },
+    "plugins": ["expo-secure-store"]
+  }
+}

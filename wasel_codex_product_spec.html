@@ -1,0 +1,1371 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="مواصفات منتج Wasel Delivery Platform لبناء MVP قابل للتوسع باستخدام Codex." />
+  <title>Wasel — Product Specification & MVP Roadmap</title>
+  <style>
+    :root{
+      --bg:#f5f7fb;
+      --surface:#ffffff;
+      --surface-2:#eef2f7;
+      --text:#172033;
+      --muted:#64748b;
+      --line:#dbe3ee;
+      --brand:#0f766e;
+      --brand-2:#14b8a6;
+      --accent:#f59e0b;
+      --danger:#dc2626;
+      --success:#15803d;
+      --shadow:0 16px 40px rgba(15,23,42,.10);
+      --radius:18px;
+      --code:#111827;
+      --code-text:#e5e7eb;
+    }
+    [data-theme="dark"]{
+      --bg:#07111f;
+      --surface:#0d1b2a;
+      --surface-2:#132235;
+      --text:#eef6ff;
+      --muted:#9fb0c5;
+      --line:#22354c;
+      --brand:#2dd4bf;
+      --brand-2:#5eead4;
+      --accent:#fbbf24;
+      --danger:#f87171;
+      --success:#4ade80;
+      --shadow:0 18px 48px rgba(0,0,0,.28);
+      --code:#020617;
+      --code-text:#e2e8f0;
+    }
+    *{box-sizing:border-box}
+    html{scroll-behavior:smooth}
+    body{
+      margin:0;
+      font-family:"Segoe UI",Tahoma,Arial,sans-serif;
+      background:var(--bg);
+      color:var(--text);
+      line-height:1.75;
+    }
+    a{color:inherit}
+    button{font:inherit}
+    .app{
+      display:grid;
+      grid-template-columns:290px minmax(0,1fr);
+      min-height:100vh;
+    }
+    aside{
+      position:sticky;
+      top:0;
+      height:100vh;
+      overflow:auto;
+      background:linear-gradient(180deg,var(--surface),var(--surface-2));
+      border-left:1px solid var(--line);
+      padding:24px 18px;
+      z-index:10;
+    }
+    .brand{
+      display:flex;
+      align-items:center;
+      gap:12px;
+      margin-bottom:22px;
+    }
+    .brand-mark{
+      width:48px;height:48px;border-radius:16px;
+      display:grid;place-items:center;
+      color:white;
+      font-weight:800;
+      background:linear-gradient(135deg,var(--brand),var(--brand-2));
+      box-shadow:var(--shadow);
+    }
+    .brand h1{font-size:20px;margin:0}
+    .brand small{display:block;color:var(--muted);margin-top:2px}
+    nav a{
+      display:block;
+      text-decoration:none;
+      padding:10px 12px;
+      margin:5px 0;
+      border-radius:12px;
+      color:var(--muted);
+      transition:.2s;
+      font-size:14px;
+    }
+    nav a:hover,nav a.active{
+      color:var(--text);
+      background:var(--surface);
+      box-shadow:0 8px 24px rgba(15,23,42,.06);
+    }
+    .side-actions{
+      display:grid;
+      gap:8px;
+      margin-top:20px;
+    }
+    .btn{
+      border:1px solid var(--line);
+      background:var(--surface);
+      color:var(--text);
+      border-radius:12px;
+      padding:10px 14px;
+      cursor:pointer;
+    }
+    .btn.primary{
+      border:none;
+      color:#fff;
+      background:linear-gradient(135deg,var(--brand),var(--brand-2));
+    }
+    main{padding:38px clamp(20px,4vw,62px) 80px}
+    section{
+      scroll-margin-top:20px;
+      background:var(--surface);
+      border:1px solid var(--line);
+      border-radius:var(--radius);
+      padding:30px;
+      margin-bottom:24px;
+      box-shadow:var(--shadow);
+    }
+    .hero{
+      min-height:420px;
+      display:grid;
+      align-content:center;
+      overflow:hidden;
+      position:relative;
+      background:
+        radial-gradient(circle at 15% 15%, rgba(20,184,166,.22), transparent 32%),
+        radial-gradient(circle at 85% 80%, rgba(245,158,11,.18), transparent 30%),
+        var(--surface);
+    }
+    .hero::after{
+      content:"";
+      position:absolute;
+      width:250px;height:250px;
+      border:40px solid rgba(20,184,166,.08);
+      border-radius:50%;
+      left:-85px;bottom:-95px;
+    }
+    .eyebrow{
+      color:var(--brand);
+      font-weight:700;
+      letter-spacing:.04em;
+      text-transform:uppercase;
+      font-size:13px;
+    }
+    h1,h2,h3{line-height:1.3}
+    h1{font-size:clamp(38px,7vw,76px);margin:10px 0 4px}
+    h2{font-size:30px;margin:0 0 10px}
+    h3{font-size:20px;margin:0 0 10px}
+    .lead{
+      font-size:20px;
+      color:var(--muted);
+      max-width:900px;
+    }
+    .chips,.legend{
+      display:flex;
+      flex-wrap:wrap;
+      gap:9px;
+      margin-top:18px;
+    }
+    .chip,.tag{
+      border-radius:999px;
+      padding:6px 11px;
+      background:var(--surface-2);
+      border:1px solid var(--line);
+      font-size:13px;
+    }
+    .tag.mvp{background:rgba(21,128,61,.10);color:var(--success);border-color:rgba(21,128,61,.25)}
+    .tag.next{background:rgba(245,158,11,.12);color:var(--accent);border-color:rgba(245,158,11,.28)}
+    .tag.future{background:rgba(15,118,110,.10);color:var(--brand);border-color:rgba(15,118,110,.25)}
+    .tag.decision{background:rgba(220,38,38,.10);color:var(--danger);border-color:rgba(220,38,38,.24)}
+    .grid{
+      display:grid;
+      gap:16px;
+    }
+    .grid.cols-2{grid-template-columns:repeat(2,minmax(0,1fr))}
+    .grid.cols-3{grid-template-columns:repeat(3,minmax(0,1fr))}
+    .grid.cols-4{grid-template-columns:repeat(4,minmax(0,1fr))}
+    .card{
+      background:var(--surface-2);
+      border:1px solid var(--line);
+      border-radius:16px;
+      padding:18px;
+    }
+    .card p:last-child{margin-bottom:0}
+    .metric{
+      font-size:32px;
+      font-weight:800;
+      color:var(--brand);
+    }
+    ul,ol{padding-right:22px}
+    li{margin:6px 0}
+    .callout{
+      border-right:5px solid var(--brand);
+      background:var(--surface-2);
+      padding:16px 18px;
+      border-radius:14px;
+      margin:16px 0;
+    }
+    .callout.warning{border-color:var(--accent)}
+    .callout.danger{border-color:var(--danger)}
+    .callout.success{border-color:var(--success)}
+    .flow{
+      display:grid;
+      gap:10px;
+      counter-reset:flow;
+    }
+    .flow-step{
+      position:relative;
+      padding:14px 58px 14px 16px;
+      border:1px solid var(--line);
+      border-radius:14px;
+      background:var(--surface-2);
+    }
+    .flow-step::before{
+      counter-increment:flow;
+      content:counter(flow);
+      position:absolute;
+      right:14px;top:12px;
+      width:30px;height:30px;
+      display:grid;place-items:center;
+      border-radius:10px;
+      background:var(--brand);
+      color:#fff;
+      font-weight:800;
+    }
+    table{
+      width:100%;
+      border-collapse:collapse;
+      overflow:hidden;
+      border-radius:14px;
+      font-size:14px;
+    }
+    th,td{
+      border:1px solid var(--line);
+      padding:12px;
+      vertical-align:top;
+      text-align:right;
+    }
+    th{background:var(--surface-2)}
+    .table-wrap{overflow:auto}
+    pre{
+      direction:ltr;
+      text-align:left;
+      overflow:auto;
+      background:var(--code);
+      color:var(--code-text);
+      padding:18px;
+      border-radius:14px;
+      font-family:Consolas,"Courier New",monospace;
+      font-size:13px;
+      line-height:1.6;
+      white-space:pre;
+    }
+    .code-wrap{position:relative}
+    .copy{
+      position:absolute;
+      left:10px;top:10px;
+      border:1px solid rgba(255,255,255,.18);
+      background:rgba(255,255,255,.08);
+      color:white;
+      border-radius:9px;
+      padding:6px 9px;
+      cursor:pointer;
+      font-size:12px;
+    }
+    details{
+      border:1px solid var(--line);
+      background:var(--surface-2);
+      border-radius:14px;
+      margin:10px 0;
+      overflow:hidden;
+    }
+    summary{
+      cursor:pointer;
+      font-weight:700;
+      padding:14px 16px;
+    }
+    details > div{padding:0 16px 16px}
+    .footer{
+      color:var(--muted);
+      text-align:center;
+      margin-top:26px;
+      font-size:13px;
+    }
+    .mobile-top{
+      display:none;
+      position:sticky;
+      top:0;
+      z-index:20;
+      background:rgba(255,255,255,.9);
+      backdrop-filter:blur(12px);
+      border-bottom:1px solid var(--line);
+      padding:10px 14px;
+      gap:10px;
+      align-items:center;
+      justify-content:space-between;
+    }
+    [data-theme="dark"] .mobile-top{background:rgba(7,17,31,.9)}
+    .status{
+      display:inline-block;
+      width:10px;height:10px;border-radius:50%;
+      margin-left:6px;
+    }
+    .status.mvp{background:var(--success)}
+    .status.next{background:var(--accent)}
+    .status.future{background:var(--brand)}
+    .status.decision{background:var(--danger)}
+    @media (max-width:1000px){
+      .app{grid-template-columns:1fr}
+      aside{
+        position:fixed;
+        right:0;top:0;
+        width:min(86vw,320px);
+        transform:translateX(110%);
+        transition:.25s;
+        box-shadow:var(--shadow);
+      }
+      aside.open{transform:translateX(0)}
+      .mobile-top{display:flex}
+      main{padding:22px 14px 60px}
+      .grid.cols-4,.grid.cols-3,.grid.cols-2{grid-template-columns:1fr}
+      section{padding:22px}
+    }
+    @media print{
+      aside,.mobile-top,.side-actions,.copy{display:none!important}
+      .app{display:block}
+      body{background:white}
+      main{padding:0}
+      section{
+        box-shadow:none;
+        break-inside:avoid;
+        page-break-inside:avoid;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="mobile-top">
+    <button class="btn" id="menuBtn">☰ الأقسام</button>
+    <strong>Wasel Product Spec</strong>
+    <button class="btn" id="themeMobile">◐</button>
+  </div>
+
+  <div class="app">
+    <aside id="sidebar">
+      <div class="brand">
+        <div class="brand-mark">W</div>
+        <div>
+          <h1>Wasel</h1>
+          <small>Delivery Platform Specification</small>
+        </div>
+      </div>
+
+      <nav id="nav">
+        <a href="#overview">نظرة عامة</a>
+        <a href="#principles">مبادئ المنتج</a>
+        <a href="#roles">المستخدمون والأدوار</a>
+        <a href="#mvp">نطاق الـMVP</a>
+        <a href="#merchant">تطبيق صاحب المحل</a>
+        <a href="#courier">تطبيق المندوب</a>
+        <a href="#admin">لوحة الإدارة</a>
+        <a href="#workflow">دورة الطلب</a>
+        <a href="#pricing">التسعير والعمولة</a>
+        <a href="#cod">تحصيل الكاش</a>
+        <a href="#safety">الأمان والجودة</a>
+        <a href="#future">التوسع المستقبلي</a>
+        <a href="#architecture">المعمارية التقنية</a>
+        <a href="#data">نموذج البيانات</a>
+        <a href="#api">الـAPIs والأحداث</a>
+        <a href="#screens">الشاشات المطلوبة</a>
+        <a href="#roadmap">مراحل التنفيذ</a>
+        <a href="#acceptance">معايير القبول</a>
+        <a href="#codex">برومبت البداية لكوديكس</a>
+      </nav>
+
+      <div class="side-actions">
+        <button class="btn primary" onclick="window.print()">طباعة / حفظ PDF</button>
+        <button class="btn" id="themeBtn">تغيير المظهر</button>
+        <button class="btn" id="expandBtn">فتح كل التفاصيل</button>
+      </div>
+    </aside>
+
+    <main>
+      <section class="hero" id="overview">
+        <div class="eyebrow">Product Requirements Document • MVP First • Scale Ready</div>
+        <h1>Wasel</h1>
+        <p class="lead">
+          منصة توصيل عند الطلب تربط أصحاب المحلات بمندوبي توصيل مستقلين بالموتوسيكلات،
+          بنموذج قريب من تطبيقات النقل عند الطلب، لكن مخصص لتوصيل المنتجات والطلبات من المحل إلى العميل.
+        </p>
+        <div class="chips">
+          <span class="chip">اسم المشروع: Wasel</span>
+          <span class="chip">السوق الأولي: مصر</span>
+          <span class="chip">واجهة عربية RTL + إنجليزية لاحقًا</span>
+          <span class="chip">MVP قابل للتوسع</span>
+          <span class="chip">Web Admin + Mobile Apps</span>
+        </div>
+        <div class="callout success">
+          <strong>الهدف الأول:</strong> تشغيل أول طلب حقيقي من لحظة إنشائه بواسطة صاحب المحل، مرورًا بقبول المندوب،
+          وحتى التسليم وإثباته، مع حساب تكلفة التوصيل وعمولة المنصة.
+        </div>
+      </section>
+
+      <section id="principles">
+        <h2>1. مبادئ المنتج</h2>
+        <div class="grid cols-3">
+          <div class="card">
+            <h3>ابدأ صغيرًا</h3>
+            <p>تنفيذ رحلة توصيل واحدة بشكل كامل وموثوق قبل بناء الأنظمة المعقدة.</p>
+          </div>
+          <div class="card">
+            <h3>قابلية التوسع</h3>
+            <p>تصميم قاعدة البيانات والخدمات من البداية لدعم الفروع، الشركات، المدن، المركبات، والطلبات المتعددة.</p>
+          </div>
+          <div class="card">
+            <h3>الأمان أولًا</h3>
+            <p>التحقق من الهوية، تتبع الحالات، إثبات الاستلام والتسليم، وسجل تدقيق لكل عملية.</p>
+          </div>
+          <div class="card">
+            <h3>سرعة الاستخدام</h3>
+            <p>صاحب المحل يجب أن يطلب مندوبًا خلال أقل عدد ممكن من الخطوات.</p>
+          </div>
+          <div class="card">
+            <h3>فصل الأنظمة</h3>
+            <p>الخريطة، الدفع، الرسائل، والإشعارات تُبنى خلف واجهات قابلة لاستبدال المزود دون إعادة كتابة المنتج.</p>
+          </div>
+          <div class="card">
+            <h3>قرارات قابلة للتفعيل</h3>
+            <p>تحصيل الكاش، التسعير وقت الذروة، والطلبات المجمعة تُدار عن طريق Feature Flags.</p>
+          </div>
+        </div>
+        <div class="legend">
+          <span class="tag mvp"><span class="status mvp"></span>MVP</span>
+          <span class="tag next"><span class="status next"></span>المرحلة التالية</span>
+          <span class="tag future"><span class="status future"></span>توسع مستقبلي</span>
+          <span class="tag decision"><span class="status decision"></span>قرار منتج مفتوح</span>
+        </div>
+      </section>
+
+      <section id="roles">
+        <h2>2. المستخدمون والأدوار</h2>
+        <div class="grid cols-4">
+          <div class="card">
+            <h3>صاحب المحل</h3>
+            <p>ينشئ طلبات التوصيل، يتابع المندوب، يدفع تكلفة الخدمة، ويشاهد التقارير.</p>
+          </div>
+          <div class="card">
+            <h3>موظف المحل</h3>
+            <p>ينشئ ويتابع الطلبات حسب الصلاحيات، بدون الوصول الكامل إلى الإعدادات والبيانات المالية.</p>
+          </div>
+          <div class="card">
+            <h3>المندوب</h3>
+            <p>يستقبل الطلبات القريبة، يقبلها، يستلمها، يوصلها، ويثبت التسليم.</p>
+          </div>
+          <div class="card">
+            <h3>الإدارة</h3>
+            <p>تراجع الحسابات والمستندات، تراقب الطلبات، تضبط الأسعار، وتحل النزاعات.</p>
+          </div>
+        </div>
+        <div class="callout">
+          <strong>RBAC:</strong> يجب تطبيق صلاحيات واضحة من البداية: Owner، Manager، Staff، Courier، Support، Operations Admin، Finance Admin، Super Admin.
+        </div>
+      </section>
+
+      <section id="mvp">
+        <h2>3. نطاق الـMVP</h2>
+        <p>الـMVP لا يعني تطبيقًا ناقصًا؛ بل رحلة أساسية مكتملة يمكن تشغيلها فعليًا واختبار نموذج العمل بها.</p>
+        <div class="grid cols-3">
+          <div class="card">
+            <h3>تطبيق صاحب المحل <span class="tag mvp">MVP</span></h3>
+            <ul>
+              <li>تسجيل حساب وإنشاء متجر.</li>
+              <li>حفظ موقع المتجر.</li>
+              <li>إنشاء طلب فوري.</li>
+              <li>إدخال بيانات العميل والعنوان.</li>
+              <li>تحديد نوع وحجم الطلب.</li>
+              <li>عرض تكلفة التوصيل قبل التأكيد.</li>
+              <li>متابعة حالة الطلب والمندوب.</li>
+              <li>سجل الطلبات والتقييم.</li>
+            </ul>
+          </div>
+          <div class="card">
+            <h3>تطبيق المندوب <span class="tag mvp">MVP</span></h3>
+            <ul>
+              <li>التسجيل ورفع المستندات.</li>
+              <li>قبول أو رفض الطلب.</li>
+              <li>تغيير الحالة إلى متاح/غير متاح.</li>
+              <li>الملاحة لموقع الاستلام والتسليم.</li>
+              <li>تأكيد الوصول والاستلام.</li>
+              <li>إثبات التسليم بـOTP أو صورة.</li>
+              <li>ملخص الأرباح والرحلات.</li>
+            </ul>
+          </div>
+          <div class="card">
+            <h3>لوحة الإدارة <span class="tag mvp">MVP</span></h3>
+            <ul>
+              <li>مراجعة وقبول المندوبين.</li>
+              <li>إدارة أصحاب المحلات.</li>
+              <li>مشاهدة الطلبات الحالية.</li>
+              <li>تعديل التسعير والعمولة.</li>
+              <li>إدارة الطلبات الملغاة والمشكلات.</li>
+              <li>تقارير تشغيلية ومالية أساسية.</li>
+            </ul>
+          </div>
+        </div>
+        <div class="callout warning">
+          <strong>خارج الـMVP:</strong> الطلبات المجمعة، الاشتراكات، الفروع المتعددة، إخفاء أرقام الهاتف، الذكاء الاصطناعي،
+          الاستيراد من Excel، الـAPI الخارجي، والتسعير الديناميكي الكامل.
+        </div>
+      </section>
+
+      <section id="merchant">
+        <h2>4. خصائص تطبيق صاحب المحل</h2>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr><th>الخاصية</th><th>الوصف</th><th>المرحلة</th></tr>
+            </thead>
+            <tbody>
+              <tr><td>التسجيل وتوثيق الهاتف</td><td>OTP، بيانات النشاط، اسم المتجر، العنوان، المنطقة.</td><td><span class="tag mvp">MVP</span></td></tr>
+              <tr><td>إنشاء طلب توصيل</td><td>نقطة الاستلام، عنوان التسليم، بيانات العميل، وصف الطلب، ملاحظات.</td><td><span class="tag mvp">MVP</span></td></tr>
+              <tr><td>حساب السعر</td><td>سعر افتتاح + مسافة + إضافات الحجم أو الانتظار.</td><td><span class="tag mvp">MVP</span></td></tr>
+              <tr><td>تتبع مباشر</td><td>عرض موقع المندوب وحالة الطلب لحظيًا.</td><td><span class="tag mvp">MVP</span></td></tr>
+              <tr><td>التواصل</td><td>اتصال مباشر في الـMVP، وإخفاء الرقم لاحقًا.</td><td><span class="tag mvp">MVP</span> <span class="tag next">Next</span></td></tr>
+              <tr><td>العناوين والعملاء المحفوظون</td><td>إعادة استخدام بيانات العملاء والعناوين المتكررة.</td><td><span class="tag next">Next</span></td></tr>
+              <tr><td>إعادة الطلب</td><td>تكرار طلب سابق بضغطة واحدة.</td><td><span class="tag next">Next</span></td></tr>
+              <tr><td>الطلبات المجدولة</td><td>اختيار وقت استلام مستقبلي.</td><td><span class="tag next">Next</span></td></tr>
+              <tr><td>الفروع والموظفون</td><td>فروع متعددة، موظفون، أدوار وصلاحيات.</td><td><span class="tag future">Future</span></td></tr>
+              <tr><td>تقارير متقدمة</td><td>تكلفة التوصيل، زمن الإنجاز، الإلغاء، الأداء حسب الفرع.</td><td><span class="tag future">Future</span></td></tr>
+              <tr><td>استيراد الطلبات</td><td>Excel/CSV أو ربط API مع المتجر الإلكتروني.</td><td><span class="tag future">Future</span></td></tr>
+              <tr><td>رابط تتبع للعميل</td><td>رابط بدون تسجيل لمتابعة الطلب واستلام OTP.</td><td><span class="tag next">Next</span></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section id="courier">
+        <h2>5. خصائص تطبيق المندوب</h2>
+        <div class="grid cols-2">
+          <div class="card">
+            <h3>التشغيل الأساسي <span class="tag mvp">MVP</span></h3>
+            <ul>
+              <li>التسجيل برقم الهاتف.</li>
+              <li>رفع البطاقة، الرخصة، ورخصة المركبة.</li>
+              <li>حالة متاح / غير متاح.</li>
+              <li>استقبال عروض الطلبات القريبة.</li>
+              <li>عرض المسافة والأجر قبل القبول.</li>
+              <li>مهلة زمنية لقبول الطلب.</li>
+              <li>ملاحة خارجية أو داخل التطبيق.</li>
+              <li>تأكيد الوصول والاستلام والتسليم.</li>
+              <li>سجل الأرباح والرحلات.</li>
+            </ul>
+          </div>
+          <div class="card">
+            <h3>خصائص التوسع</h3>
+            <ul>
+              <li><span class="tag next">Next</span> مناطق العمل المفضلة وساعات التوفر.</li>
+              <li><span class="tag next">Next</span> نظام حوافز وأهداف يومية.</li>
+              <li><span class="tag next">Next</span> محفظة وسحب رصيد.</li>
+              <li><span class="tag future">Future</span> قبول تلقائي بشروط.</li>
+              <li><span class="tag future">Future</span> مستويات: جديد، موثوق، محترف.</li>
+              <li><span class="tag future">Future</span> خرائط حرارية للطلب المرتفع.</li>
+              <li><span class="tag future">Future</span> تأمين ودعم الحوادث.</li>
+              <li><span class="tag future">Future</span> دعوة مندوبين ومكافآت إحالة.</li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      <section id="admin">
+        <h2>6. لوحة الإدارة</h2>
+        <div class="grid cols-3">
+          <div class="card">
+            <h3>العمليات</h3>
+            <ul>
+              <li>خريطة الطلبات النشطة.</li>
+              <li>تعيين مندوب يدويًا.</li>
+              <li>تعديل حالة الطلب عند الضرورة.</li>
+              <li>مشاهدة سجل الأحداث الكامل.</li>
+              <li>إدارة الطلبات المتأخرة والملغاة.</li>
+            </ul>
+          </div>
+          <div class="card">
+            <h3>إدارة المستخدمين</h3>
+            <ul>
+              <li>المحلات والمستخدمون.</li>
+              <li>قبول أو رفض مستندات المندوبين.</li>
+              <li>إيقاف وحظر الحسابات.</li>
+              <li>حدود النقد والمخاطر.</li>
+              <li>إدارة الشكاوى والنزاعات.</li>
+            </ul>
+          </div>
+          <div class="card">
+            <h3>المالية والإعدادات</h3>
+            <ul>
+              <li>التسعير حسب المدينة والمنطقة.</li>
+              <li>نسبة العمولة.</li>
+              <li>المحافظ والتسويات.</li>
+              <li>تقارير الأرباح والطلبات.</li>
+              <li>Feature Flags والإشعارات.</li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      <section id="workflow">
+        <h2>7. دورة الطلب الأساسية</h2>
+        <div class="flow">
+          <div class="flow-step"><strong>إنشاء الطلب:</strong> صاحب المحل يدخل بيانات الاستلام والتسليم والأوردر.</div>
+          <div class="flow-step"><strong>التسعير:</strong> النظام يحسب المسافة والسعر ويعرضه قبل التأكيد.</div>
+          <div class="flow-step"><strong>البحث عن مندوب:</strong> إرسال العرض لأقرب مجموعة مناسبة.</div>
+          <div class="flow-step"><strong>القبول:</strong> أول مندوب مؤهل يقبل، ويُغلق العرض على الآخرين.</div>
+          <div class="flow-step"><strong>الوصول للمحل:</strong> المندوب يتجه للاستلام ويؤكد الوصول.</div>
+          <div class="flow-step"><strong>استلام الأوردر:</strong> تأكيد الاستلام بكود أو تأكيد متبادل.</div>
+          <div class="flow-step"><strong>التوصيل:</strong> تتبع حي للمندوب أثناء الرحلة.</div>
+          <div class="flow-step"><strong>إثبات التسليم:</strong> OTP أو صورة أو توقيع حسب الإعدادات.</div>
+          <div class="flow-step"><strong>الإغلاق المالي:</strong> إضافة أجر المندوب، تسجيل عمولة المنصة، وإصدار إيصال.</div>
+          <div class="flow-step"><strong>التقييم:</strong> صاحب المحل يقيّم المندوب، وتُحدّث مؤشرات الجودة.</div>
+        </div>
+
+        <h3 style="margin-top:24px">حالات الطلب المقترحة</h3>
+        <div class="code-wrap">
+          <button class="copy" onclick="copyCode(this)">نسخ</button>
+<pre><code>draft
+quoted
+searching_courier
+courier_assigned
+courier_arriving_pickup
+at_pickup
+picked_up
+in_transit
+at_dropoff
+delivered
+delivery_failed
+returning_to_store
+returned
+cancelled</code></pre>
+        </div>
+
+        <div class="callout">
+          كل تغيير حالة يجب أن يُسجل كـ <strong>Order Event</strong> مستقل يحتوي على: الحالة السابقة، الجديدة، المستخدم، الوقت، الموقع، والملاحظات.
+        </div>
+      </section>
+
+      <section id="pricing">
+        <h2>8. التسعير والعمولة</h2>
+        <div class="grid cols-2">
+          <div class="card">
+            <h3>معادلة MVP</h3>
+            <p><strong>السعر = رسم فتح الطلب + سعر لكل كيلومتر + رسوم حجم/وزن اختيارية + رسوم انتظار.</strong></p>
+            <ul>
+              <li>حد أدنى للسعر.</li>
+              <li>تقريب واضح للعملة.</li>
+              <li>تسجيل نسخة التسعير المستخدمة مع كل طلب.</li>
+              <li>دعم أسعار مختلفة حسب المدينة أو المنطقة.</li>
+            </ul>
+          </div>
+          <div class="card">
+            <h3>عمولة المنصة</h3>
+            <p>العمولة الأساسية تُحصّل من صاحب المحل، وليس من المندوب، لتسهيل جذب المندوبين في البداية.</p>
+            <ul>
+              <li>نسبة مئوية من رسوم التوصيل.</li>
+              <li>أو مبلغ ثابت لكل طلب.</li>
+              <li>أو نظام هجين.</li>
+              <li>إمكانية باقات شهرية بعمولة أقل لاحقًا.</li>
+            </ul>
+          </div>
+        </div>
+        <div class="callout warning">
+          <strong>مهم:</strong> لا تكتب التسعير داخل الكود بشكل ثابت. أنشئ Pricing Rules في قاعدة البيانات مع تاريخ سريان وVersion.
+        </div>
+      </section>
+
+      <section id="cod">
+        <h2>9. تحصيل قيمة الأوردر كاش</h2>
+        <div class="callout danger">
+          <strong>قرار المنتج المفتوح:</strong> هل المندوب سيحصّل قيمة الأوردر من العميل ويسلّمها لصاحب المحل، أم دوره توصيل فقط؟
+        </div>
+        <p>حتى لا يتوقف التنفيذ، يُبنى النظام من البداية لدعم الحالتين، لكن يتم تعطيل تحصيل الكاش افتراضيًا باستخدام Feature Flag.</p>
+
+        <div class="grid cols-2">
+          <div class="card">
+            <h3>الوضع الأول: Delivery Only <span class="tag mvp">MVP Default</span></h3>
+            <ul>
+              <li>المنتج مدفوع مسبقًا أو تتم محاسبته خارج المنصة.</li>
+              <li>المندوب يحصل فقط على رسوم التوصيل.</li>
+              <li>مخاطر مالية أقل وتشغيل أسرع.</li>
+            </ul>
+          </div>
+          <div class="card">
+            <h3>الوضع الثاني: Cash on Delivery <span class="tag decision">Decision</span></h3>
+            <ul>
+              <li>صاحب المحل يدخل قيمة الأوردر.</li>
+              <li>المندوب يرى قيمة التحصيل قبل القبول.</li>
+              <li>يتم تسجيل مبلغ مستحق على المندوب.</li>
+              <li>تسويات يومية أو دورية مع حدود ائتمانية.</li>
+              <li>منع قبول طلبات جديدة عند تجاوز حد النقد.</li>
+            </ul>
+          </div>
+        </div>
+
+        <details>
+          <summary>متطلبات COD عند تفعيله</summary>
+          <div>
+            <ul>
+              <li>Courier Cash Ledger لكل مندوب.</li>
+              <li>Store Settlement Ledger لكل متجر.</li>
+              <li>إثبات التحصيل وإثبات التسوية.</li>
+              <li>حد نقدي للمندوب حسب مستوى الثقة.</li>
+              <li>تنبيهات للمديونيات المتأخرة.</li>
+              <li>مسار نزاع واضح في حالة اختلاف المبلغ.</li>
+              <li>عدم تعديل قيمة الأوردر بعد الاستلام إلا بموافقة إدارية وتسجيل Audit Log.</li>
+            </ul>
+          </div>
+        </details>
+      </section>
+
+      <section id="safety">
+        <h2>10. الأمان والجودة ومنع الاحتيال</h2>
+        <div class="grid cols-3">
+          <div class="card">
+            <h3>الهوية والمستندات</h3>
+            <ul>
+              <li>توثيق رقم الهاتف.</li>
+              <li>مراجعة البطاقة والرخص.</li>
+              <li>تاريخ انتهاء المستندات.</li>
+              <li>إعادة المراجعة عند التحديث.</li>
+            </ul>
+          </div>
+          <div class="card">
+            <h3>أمان الرحلة</h3>
+            <ul>
+              <li>تسجيل مواقع أساسية أثناء الرحلة.</li>
+              <li>منع تأكيد التسليم بعيدًا عن العنوان إلا بسبب موثق.</li>
+              <li>OTP أو صورة أو توقيع.</li>
+              <li>زر الإبلاغ عن مشكلة.</li>
+            </ul>
+          </div>
+          <div class="card">
+            <h3>الجودة</h3>
+            <ul>
+              <li>تقييمات متبادلة.</li>
+              <li>معدل القبول والإلغاء.</li>
+              <li>الالتزام بالوقت.</li>
+              <li>سلامة الأوردر.</li>
+            </ul>
+          </div>
+        </div>
+        <div class="callout">
+          يجب تشفير البيانات الحساسة، عدم تخزين OTP كنص صريح، استخدام Rate Limiting، صلاحيات دقيقة، وتسجيل كل الإجراءات الإدارية.
+        </div>
+      </section>
+
+      <section id="future">
+        <h2>11. الخصائص المستقبلية</h2>
+        <div class="grid cols-3">
+          <div class="card">
+            <h3>التشغيل</h3>
+            <ul>
+              <li>طلبات مجدولة.</li>
+              <li>طلبات مجمعة في رحلة واحدة.</li>
+              <li>تحسين ترتيب التوصيل.</li>
+              <li>إعادة الطلب للمحل.</li>
+              <li>تسعير وقت الذروة.</li>
+            </ul>
+          </div>
+          <div class="card">
+            <h3>المحلات والشركات</h3>
+            <ul>
+              <li>فروع متعددة.</li>
+              <li>صلاحيات الموظفين.</li>
+              <li>باقات واشتراكات.</li>
+              <li>فواتير شهرية.</li>
+              <li>API وWebhooks.</li>
+            </ul>
+          </div>
+          <div class="card">
+            <h3>المندوبون</h3>
+            <ul>
+              <li>الحوافز والمكافآت.</li>
+              <li>الورديات والمناطق.</li>
+              <li>المستويات والسمعة.</li>
+              <li>السحب الإلكتروني.</li>
+              <li>التأمين والحوادث.</li>
+            </ul>
+          </div>
+          <div class="card">
+            <h3>الذكاء الاصطناعي</h3>
+            <ul>
+              <li>توقع الطلب حسب المنطقة والوقت.</li>
+              <li>اختيار أفضل مندوب.</li>
+              <li>كشف السلوك غير الطبيعي.</li>
+              <li>توقع التأخير.</li>
+            </ul>
+          </div>
+          <div class="card">
+            <h3>قنوات التواصل</h3>
+            <ul>
+              <li>WhatsApp Business.</li>
+              <li>رابط تتبع للعميل.</li>
+              <li>SMS وPush Notifications.</li>
+              <li>مكالمات بأرقام مخفية.</li>
+            </ul>
+          </div>
+          <div class="card">
+            <h3>التوسع الجغرافي</h3>
+            <ul>
+              <li>مدن ومناطق متعددة.</li>
+              <li>أنواع مركبات مختلفة.</li>
+              <li>لغات وعملات متعددة.</li>
+              <li>شركاء أسطول خارجيون.</li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      <section id="architecture">
+        <h2>12. المعمارية التقنية المقترحة</h2>
+        <p>المعمارية المقترحة تبدأ كـModular Monolith منظم، وليس Microservices مبكرًا، مع حدود واضحة تسمح بالفصل لاحقًا.</p>
+
+        <div class="grid cols-2">
+          <div class="card">
+            <h3>التطبيقات</h3>
+            <ul>
+              <li><strong>merchant-web أو merchant-mobile:</strong> تطبيق صاحب المحل.</li>
+              <li><strong>courier-mobile:</strong> تطبيق المندوب.</li>
+              <li><strong>admin-web:</strong> لوحة الإدارة.</li>
+              <li><strong>api:</strong> الخدمات وقواعد العمل.</li>
+              <li><strong>worker:</strong> المهام الخلفية والإشعارات وإعادة المحاولة.</li>
+            </ul>
+          </div>
+          <div class="card">
+            <h3>Stack مقترح</h3>
+            <ul>
+              <li>Frontend Web: Next.js + TypeScript.</li>
+              <li>Mobile: React Native / Expo.</li>
+              <li>Backend: NestJS + TypeScript.</li>
+              <li>Database: PostgreSQL + PostGIS.</li>
+              <li>Cache/Queues: Redis + BullMQ.</li>
+              <li>Realtime: WebSockets / Socket.IO.</li>
+              <li>Storage: S3-compatible object storage.</li>
+              <li>Observability: structured logs + error tracking.</li>
+            </ul>
+          </div>
+        </div>
+
+        <h3 style="margin-top:22px">الموديولات الأساسية</h3>
+        <div class="chips">
+          <span class="chip">Auth</span><span class="chip">Users</span><span class="chip">Merchants</span>
+          <span class="chip">Stores</span><span class="chip">Couriers</span><span class="chip">Vehicles</span>
+          <span class="chip">Orders</span><span class="chip">Dispatch</span><span class="chip">Tracking</span>
+          <span class="chip">Pricing</span><span class="chip">Proof of Delivery</span><span class="chip">Ratings</span>
+          <span class="chip">Wallets</span><span class="chip">Settlements</span><span class="chip">Notifications</span>
+          <span class="chip">Support</span><span class="chip">Admin</span><span class="chip">Audit</span>
+        </div>
+
+        <h3 style="margin-top:22px">هيكل Monorepo مقترح</h3>
+        <div class="code-wrap">
+          <button class="copy" onclick="copyCode(this)">نسخ</button>
+<pre><code>wasel/
+├─ apps/
+│  ├─ api/
+│  ├─ admin-web/
+│  ├─ merchant-web/
+│  ├─ courier-mobile/
+│  └─ worker/
+├─ packages/
+│  ├─ ui/
+│  ├─ contracts/
+│  ├─ config/
+│  ├─ localization/
+│  ├─ validation/
+│  └─ observability/
+├─ infrastructure/
+│  ├─ docker/
+│  ├─ database/
+│  └─ deployment/
+└─ docs/
+   ├─ architecture/
+   ├─ api/
+   └─ product/</code></pre>
+        </div>
+
+        <div class="callout success">
+          <strong>قاعدة مهمة:</strong> كل مزود خارجي مثل الخرائط، SMS، الدفع، التخزين، والمكالمات يجب أن يستخدم Adapter Interface حتى يمكن استبداله.
+        </div>
+      </section>
+
+      <section id="data">
+        <h2>13. نموذج البيانات الأساسي</h2>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr><th>الكيان</th><th>الغرض</th><th>أهم الحقول</th></tr>
+            </thead>
+            <tbody>
+              <tr><td>User</td><td>الحساب الأساسي</td><td>id, phone, email, role, status, locale</td></tr>
+              <tr><td>Merchant</td><td>الكيان التجاري</td><td>legalName, displayName, status, billingMode</td></tr>
+              <tr><td>Store</td><td>فرع أو نقطة استلام</td><td>merchantId, address, location, workingHours</td></tr>
+              <tr><td>CourierProfile</td><td>بيانات المندوب</td><td>verificationStatus, rating, availability, cashLimit</td></tr>
+              <tr><td>Vehicle</td><td>المركبة</td><td>type, plateNumber, documents, active</td></tr>
+              <tr><td>Customer</td><td>العميل النهائي</td><td>name, phone, merchantId</td></tr>
+              <tr><td>Address</td><td>العنوان والموقع</td><td>label, coordinates, area, instructions</td></tr>
+              <tr><td>DeliveryOrder</td><td>الطلب</td><td>pickup, dropoff, status, amounts, paymentMode</td></tr>
+              <tr><td>OrderItemSummary</td><td>وصف مختصر للمحتوى</td><td>category, size, weight, fragile, notes</td></tr>
+              <tr><td>OrderEvent</td><td>سجل تغييرات الحالة</td><td>from, to, actor, timestamp, location</td></tr>
+              <tr><td>DispatchOffer</td><td>عرض الطلب على المندوب</td><td>courierId, orderId, status, expiresAt</td></tr>
+              <tr><td>TrackingPoint</td><td>نقاط التتبع</td><td>courierId, orderId, coordinates, capturedAt</td></tr>
+              <tr><td>ProofOfDelivery</td><td>إثبات التسليم</td><td>type, otpHash, photoUrl, recipientName</td></tr>
+              <tr><td>PricingRule</td><td>قواعد التسعير</td><td>city, area, baseFee, perKm, effectiveFrom, version</td></tr>
+              <tr><td>PriceQuote</td><td>السعر المحسوب</td><td>breakdown, distance, duration, expiresAt</td></tr>
+              <tr><td>Wallet</td><td>رصيد المستخدم أو المتجر</td><td>ownerType, balance, currency</td></tr>
+              <tr><td>LedgerEntry</td><td>حركة مالية غير قابلة للتعديل</td><td>type, amount, reference, createdAt</td></tr>
+              <tr><td>Settlement</td><td>تسوية مالية</td><td>merchantId/courierId, amount, status, period</td></tr>
+              <tr><td>Rating</td><td>تقييم بعد الطلب</td><td>fromUser, toUser, score, tags, comment</td></tr>
+              <tr><td>SupportCase</td><td>نزاع أو شكوى</td><td>orderId, type, status, resolution</td></tr>
+              <tr><td>AuditLog</td><td>تدقيق إداري</td><td>actor, action, entity, before, after, time</td></tr>
+              <tr><td>FeatureFlag</td><td>تفعيل الخصائص تدريجيًا</td><td>key, enabled, scope, rollout</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section id="api">
+        <h2>14. الـAPIs والأحداث</h2>
+        <h3>واجهات أساسية للـMVP</h3>
+        <div class="code-wrap">
+          <button class="copy" onclick="copyCode(this)">نسخ</button>
+<pre><code>POST   /auth/request-otp
+POST   /auth/verify-otp
+GET    /me
+
+POST   /merchant/stores
+GET    /merchant/stores
+POST   /orders/quote
+POST   /orders
+GET    /orders/:id
+GET    /orders
+POST   /orders/:id/cancel
+POST   /orders/:id/rate
+
+POST   /couriers/profile
+POST   /couriers/documents
+POST   /couriers/availability
+GET    /couriers/offers
+POST   /dispatch/offers/:id/accept
+POST   /dispatch/offers/:id/reject
+
+POST   /orders/:id/arrive-pickup
+POST   /orders/:id/confirm-pickup
+POST   /orders/:id/arrive-dropoff
+POST   /orders/:id/confirm-delivery
+POST   /orders/:id/report-problem
+
+GET    /admin/orders
+GET    /admin/couriers/pending
+POST   /admin/couriers/:id/approve
+POST   /admin/couriers/:id/reject
+POST   /admin/pricing-rules
+GET    /admin/dashboard</code></pre>
+        </div>
+
+        <h3>أحداث النظام</h3>
+        <div class="chips">
+          <span class="chip">order.created</span>
+          <span class="chip">quote.generated</span>
+          <span class="chip">dispatch.started</span>
+          <span class="chip">dispatch.offer.sent</span>
+          <span class="chip">courier.assigned</span>
+          <span class="chip">order.picked_up</span>
+          <span class="chip">order.location.updated</span>
+          <span class="chip">order.delivered</span>
+          <span class="chip">order.failed</span>
+          <span class="chip">payment.recorded</span>
+          <span class="chip">settlement.created</span>
+          <span class="chip">rating.submitted</span>
+        </div>
+
+        <div class="callout">
+          الـAPI يجب أن يستخدم Idempotency Keys في إنشاء الطلبات والمدفوعات، ويفرض Optimistic Locking أو Versioning على تغييرات الحالة.
+        </div>
+      </section>
+
+      <section id="screens">
+        <h2>15. الشاشات المطلوبة</h2>
+        <div class="grid cols-3">
+          <div class="card">
+            <h3>صاحب المحل</h3>
+            <ol>
+              <li>Onboarding وتسجيل الدخول.</li>
+              <li>إعداد المتجر.</li>
+              <li>Home / إنشاء طلب.</li>
+              <li>اختيار العنوان على الخريطة.</li>
+              <li>عرض السعر والتأكيد.</li>
+              <li>البحث عن مندوب.</li>
+              <li>تتبع الطلب.</li>
+              <li>تفاصيل الطلب.</li>
+              <li>سجل الطلبات.</li>
+              <li>التقييم والدعم.</li>
+            </ol>
+          </div>
+          <div class="card">
+            <h3>المندوب</h3>
+            <ol>
+              <li>Onboarding ورفع المستندات.</li>
+              <li>حالة المراجعة.</li>
+              <li>Home متاح/غير متاح.</li>
+              <li>بطاقة عرض الطلب.</li>
+              <li>الملاحة للاستلام.</li>
+              <li>تأكيد الاستلام.</li>
+              <li>الملاحة للتسليم.</li>
+              <li>إثبات التسليم.</li>
+              <li>الأرباح.</li>
+              <li>سجل الرحلات والملف الشخصي.</li>
+            </ol>
+          </div>
+          <div class="card">
+            <h3>الإدارة</h3>
+            <ol>
+              <li>تسجيل الدخول.</li>
+              <li>Dashboard.</li>
+              <li>Live Orders Map.</li>
+              <li>Order Detail.</li>
+              <li>Courier Verification.</li>
+              <li>Merchant Management.</li>
+              <li>Pricing Rules.</li>
+              <li>Support Cases.</li>
+              <li>Finance & Settlements.</li>
+              <li>Feature Flags & Audit Logs.</li>
+            </ol>
+          </div>
+        </div>
+      </section>
+
+      <section id="roadmap">
+        <h2>16. مراحل التنفيذ</h2>
+
+        <details open>
+          <summary>Phase 0 — Foundation</summary>
+          <div>
+            <ul>
+              <li>Monorepo، إعداد الجودة، Docker، قاعدة البيانات، CI.</li>
+              <li>Auth + OTP Mock Provider.</li>
+              <li>RBAC، localization، RTL، design system.</li>
+              <li>Maps abstraction وNotification abstraction.</li>
+              <li>Logging، validation، error handling، audit foundation.</li>
+            </ul>
+          </div>
+        </details>
+
+        <details open>
+          <summary>Phase 1 — Core MVP</summary>
+          <div>
+            <ul>
+              <li>المتاجر والمندوبون والمستندات.</li>
+              <li>إنشاء الطلب وعرض السعر.</li>
+              <li>Dispatch أساسي لأقرب المندوبين.</li>
+              <li>حالات الطلب كاملة.</li>
+              <li>Tracking مباشر.</li>
+              <li>OTP أو صورة للتسليم.</li>
+              <li>لوحة إدارة تشغيلية.</li>
+              <li>تقارير أساسية.</li>
+            </ul>
+          </div>
+        </details>
+
+        <details>
+          <summary>Phase 2 — Commercial Readiness</summary>
+          <div>
+            <ul>
+              <li>المحافظ والدفع.</li>
+              <li>التسويات والفواتير.</li>
+              <li>رابط تتبع العميل.</li>
+              <li>العناوين والعملاء المحفوظون.</li>
+              <li>التنبيهات المتقدمة.</li>
+              <li>الدعم والنزاعات.</li>
+              <li>إخفاء أرقام الهاتف.</li>
+            </ul>
+          </div>
+        </details>
+
+        <details>
+          <summary>Phase 3 — Scale</summary>
+          <div>
+            <ul>
+              <li>الفروع والموظفون.</li>
+              <li>COD كامل.</li>
+              <li>الطلبات المجمعة.</li>
+              <li>الاشتراكات والباقات.</li>
+              <li>API وWebhooks.</li>
+              <li>حوافز المندوبين.</li>
+            </ul>
+          </div>
+        </details>
+
+        <details>
+          <summary>Phase 4 — Intelligence</summary>
+          <div>
+            <ul>
+              <li>التنبؤ بالطلب.</li>
+              <li>تحسين التوزيع والمسارات.</li>
+              <li>التسعير الديناميكي.</li>
+              <li>كشف الاحتيال والتأخير.</li>
+            </ul>
+          </div>
+        </details>
+      </section>
+
+      <section id="acceptance">
+        <h2>17. معايير قبول الـMVP</h2>
+        <div class="grid cols-2">
+          <div class="card">
+            <h3>سيناريو النجاح</h3>
+            <ol>
+              <li>صاحب متجر جديد يسجل وينشئ متجرًا.</li>
+              <li>ينشئ طلبًا ويحصل على سعر واضح.</li>
+              <li>مندوب موثق ومتصل يستقبل العرض ويقبله.</li>
+              <li>تظهر حالة وموقع المندوب لصاحب المحل.</li>
+              <li>المندوب يؤكد الاستلام.</li>
+              <li>العميل يستلم ويتم إثبات التسليم.</li>
+              <li>الطلب يُغلق وتُسجل العمولة والأجر.</li>
+              <li>يظهر الطلب في التقارير وسجل الأحداث.</li>
+            </ol>
+          </div>
+          <div class="card">
+            <h3>الجودة المطلوبة</h3>
+            <ul>
+              <li>لا يمكن تخطي حالات الطلب بصورة غير قانونية.</li>
+              <li>لا يمكن لمندوبين قبول نفس الطلب.</li>
+              <li>كل عملية مالية تُسجل كـLedger Entry.</li>
+              <li>كل إجراء إداري حساس يظهر في Audit Log.</li>
+              <li>الواجهات تعمل بالعربية وRTL بشكل أصلي.</li>
+              <li>الواجهات متجاوبة مع الموبايل والويب.</li>
+              <li>اختبارات وحدة وتكامل للـworkflow الأساسي.</li>
+              <li>Seed Data وDemo Mode لتجربة المشروع.</li>
+              <li>README واضح لتشغيل المشروع محليًا.</li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      <section id="codex">
+        <h2>18. برومبت البداية لكوديكس</h2>
+        <p>انسخ النص التالي إلى Codex كبداية للمشروع. يطلب منه تنفيذ الأساس فقط أولًا، مع الحفاظ على قابلية التوسع.</p>
+
+        <div class="code-wrap">
+          <button class="copy" onclick="copyCode(this)">نسخ البرومبت</button>
+<pre><code>You are building a production-oriented MVP called "Wasel", an on-demand delivery platform for Egypt.
+
+Business model:
+- Merchants such as supermarkets, grocery shops, pharmacies, restaurants, and other stores create delivery requests.
+- Independent motorcycle couriers receive nearby delivery offers, accept a job, pick up the order from the store, and deliver it to the final customer.
+- The platform earns a commission from the merchant.
+- Cash-on-delivery must be supported by the architecture but disabled by default behind a feature flag until the product decision is finalized.
+
+Build the project as a scalable modular monolith in a TypeScript monorepo.
+
+Recommended apps:
+- apps/api: NestJS backend
+- apps/admin-web: Next.js admin dashboard
+- apps/merchant-web: Next.js responsive merchant app
+- apps/courier-mobile: React Native / Expo courier app
+- apps/worker: background jobs
+
+Recommended infrastructure:
+- PostgreSQL with PostGIS
+- Prisma ORM
+- Redis and BullMQ
+- WebSockets / Socket.IO for real-time updates
+- S3-compatible storage abstraction
+- Provider abstractions for maps, OTP/SMS, payments, push notifications, and phone masking
+
+Core MVP modules:
+- Authentication with OTP provider abstraction and local mock provider
+- Users and RBAC
+- Merchants and stores
+- Couriers, vehicles, and document verification
+- Orders
+- Pricing rules and price quotes
+- Dispatch offers
+- Live order tracking
+- Proof of pickup and proof of delivery
+- Ratings
+- Admin operations
+- Audit logs
+- Feature flags
+- Basic wallet/ledger foundation without enabling COD
+
+Required order state machine:
+draft
+quoted
+searching_courier
+courier_assigned
+courier_arriving_pickup
+at_pickup
+picked_up
+in_transit
+at_dropoff
+delivered
+delivery_failed
+returning_to_store
+returned
+cancelled
+
+Key rules:
+1. Every order state transition must be validated and saved as an immutable OrderEvent.
+2. Two couriers must never be able to accept the same order.
+3. Order creation and financial operations must support idempotency keys.
+4. Pricing must be database-driven and versioned, not hard-coded.
+5. All financial activity must use immutable ledger entries.
+6. All sensitive admin actions must be written to an audit log.
+7. Arabic and true RTL must be first-class, not a literal translation layer.
+8. External providers must be implemented behind interfaces/adapters.
+9. Use feature flags for COD, surge pricing, scheduled deliveries, multi-stop delivery, and subscriptions.
+10. Start with a modular monolith and clear domain boundaries; do not create microservices yet.
+
+MVP user journeys:
+
+Merchant:
+- Sign up with phone OTP
+- Create and configure a store
+- Create a delivery order
+- Select pickup and drop-off coordinates
+- Add customer data and package details
+- Receive a delivery price quote
+- Confirm the order
+- See courier assignment and live status
+- Track the courier
+- Cancel according to cancellation rules
+- See proof of delivery
+- View order history and submit a rating
+
+Courier:
+- Sign up and upload identity and vehicle documents
+- Wait for admin approval
+- Set availability online/offline
+- Receive nearby order offers
+- See pickup distance, delivery distance, and expected earnings
+- Accept or reject an offer
+- Navigate to pickup
+- Confirm arrival and pickup
+- Navigate to drop-off
+- Confirm delivery using OTP or photo
+- View trip history and earnings summary
+
+Admin:
+- Review and approve courier documents
+- Manage merchants and couriers
+- See active orders on a live map
+- Inspect the full event timeline of an order
+- Manually assign or intervene with proper audit logging
+- Configure pricing rules and platform commission
+- Review cancelled, failed, and delayed orders
+- View basic operational and financial reports
+- Manage feature flags
+
+Implementation sequence:
+Phase 0:
+- Initialize the monorepo and tooling
+- Add Docker Compose for PostgreSQL and Redis
+- Add shared TypeScript config, linting, formatting, testing, env validation, localization, and UI foundations
+- Create architecture documentation and ADRs
+- Create database schema and migrations
+- Add seed data and demo users
+
+Phase 1:
+- Implement auth, RBAC, merchants, stores, couriers, vehicles, documents, and admin verification
+- Add API contracts and tests
+
+Phase 2:
+- Implement pricing, order creation, order state machine, order events, and cancellation rules
+- Add unit and integration tests
+
+Phase 3:
+- Implement dispatch offers with concurrency protection
+- Add courier availability and location updates
+- Add real-time order updates
+
+Phase 4:
+- Implement pickup, transit, delivery proof, ratings, basic ledgers, reports, and audit logs
+- Finish the three user interfaces
+
+Do not try to build all phases in one uncontrolled pass.
+Start by:
+1. Inspecting the repository if it already exists.
+2. Creating a detailed implementation plan.
+3. Generating the monorepo foundation and architecture documentation.
+4. Implementing Phase 0 completely.
+5. Running all checks and reporting exactly what was created, what passes, and what remains.
+
+Create a professional README with exact local setup instructions for Windows and Linux.
+Never fabricate successful test results. Run the commands and report their real output.</code></pre>
+        </div>
+
+        <div class="callout warning">
+          بعد انتهاء كوديكس من Phase 0، لا تطلب منه بناء كل شيء مرة واحدة. استخدم المراحل الموجودة في هذه الوثيقة واحدة بعد الأخرى، واطلب في نهاية كل مرحلة تشغيل الاختبارات وكتابة تقرير حالة.
+        </div>
+      </section>
+
+      <div class="footer">
+        Wasel Product Specification • MVP First • Scale Ready
+      </div>
+    </main>
+  </div>
+
+  <script>
+    const root = document.documentElement;
+    const sidebar = document.getElementById('sidebar');
+    const navLinks = [...document.querySelectorAll('#nav a')];
+    const sections = [...document.querySelectorAll('main section')];
+
+    const savedTheme = localStorage.getItem('wasel-theme');
+    if(savedTheme) root.setAttribute('data-theme', savedTheme);
+
+    function toggleTheme(){
+      const next = root.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+      root.setAttribute('data-theme', next);
+      localStorage.setItem('wasel-theme', next);
+    }
+
+    document.getElementById('themeBtn').addEventListener('click', toggleTheme);
+    document.getElementById('themeMobile').addEventListener('click', toggleTheme);
+
+    document.getElementById('menuBtn').addEventListener('click', () => {
+      sidebar.classList.toggle('open');
+    });
+
+    navLinks.forEach(link => {
+      link.addEventListener('click', () => sidebar.classList.remove('open'));
+    });
+
+    const observer = new IntersectionObserver(entries => {
+      entries.forEach(entry => {
+        if(entry.isIntersecting){
+          navLinks.forEach(a => a.classList.toggle('active', a.getAttribute('href') === '#' + entry.target.id));
+        }
+      });
+    }, {rootMargin:'-35% 0px -55% 0px', threshold:0});
+
+    sections.forEach(section => observer.observe(section));
+
+    document.getElementById('expandBtn').addEventListener('click', (event) => {
+      const all = [...document.querySelectorAll('details')];
+      const shouldOpen = all.some(d => !d.open);
+      all.forEach(d => d.open = shouldOpen);
+      event.target.textContent = shouldOpen ? 'إغلاق كل التفاصيل' : 'فتح كل التفاصيل';
+    });
+
+    async function copyCode(button){
+      const code = button.parentElement.querySelector('code').innerText;
+      try{
+        await navigator.clipboard.writeText(code);
+        const old = button.textContent;
+        button.textContent = 'تم النسخ';
+        setTimeout(() => button.textContent = old, 1200);
+      }catch{
+        alert('تعذر النسخ التلقائي. حدّد النص وانسخه يدويًا.');
+      }
+    }
+    window.copyCode = copyCode;
+  </script>
+</body>
+</html>

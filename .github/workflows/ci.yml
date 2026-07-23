@@ -1,0 +1,95 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgis/postgis:18-3.6
+        env:
+          POSTGRES_DB: wasel
+          POSTGRES_USER: wasel
+          POSTGRES_PASSWORD: wasel_local_password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U wasel -d wasel"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+      redis:
+        image: redis:8.8.0-alpine3.23
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    env:
+      NODE_ENV: test
+      DATABASE_URL: postgresql://wasel:wasel_local_password@localhost:5432/wasel?schema=public
+      REDIS_URL: redis://localhost:6379
+      LOG_LEVEL: silent
+      OTP_MOCK_CODE: '123456'
+      OTP_PEPPER: ci-only-otp-pepper-at-least-thirty-two-characters
+      ACCESS_TOKEN_SECRET: ci-only-access-secret-at-least-thirty-two-characters
+      NEXT_PUBLIC_API_URL: http://localhost:3000/api/v1
+      EXPO_PUBLIC_API_URL: http://localhost:3000/api/v1
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.9.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm db:generate
+      - run: pnpm db:deploy
+      - run: pnpm db:seed
+      - run: pnpm check
+
+  database:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgis/postgis:18-3.6
+        env:
+          POSTGRES_DB: wasel
+          POSTGRES_USER: wasel
+          POSTGRES_PASSWORD: wasel_local_password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U wasel -d wasel"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    env:
+      DATABASE_URL: postgresql://wasel:wasel_local_password@localhost:5432/wasel?schema=public
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.9.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm db:generate
+      - run: pnpm db:deploy
+      - run: pnpm db:seed
+      - run: pnpm db:status

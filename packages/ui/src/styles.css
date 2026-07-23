@@ -1,0 +1,54 @@
+:root {
+  color-scheme: light;
+  --wasel-brand-50: #effcf8;
+  --wasel-brand-500: #0f9f8f;
+  --wasel-brand-700: #087267;
+  --wasel-ink: #13232e;
+  --wasel-muted: #60727e;
+  --wasel-surface: #ffffff;
+  --wasel-canvas: #f3f7f6;
+  --wasel-border: #d8e5e1;
+  --wasel-radius-sm: 0.75rem;
+  --wasel-radius-lg: 1.5rem;
+  --wasel-shadow: 0 1.25rem 3rem rgb(19 35 46 / 10%);
+  --wasel-space-1: 0.5rem;
+  --wasel-space-2: 1rem;
+  --wasel-space-3: 1.5rem;
+  --wasel-space-4: 2rem;
+  font-family: Tahoma, Arial, sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--wasel-canvas);
+  color: var(--wasel-ink);
+}
+
+.wasel-surface {
+  border: 1px solid var(--wasel-border);
+  border-radius: var(--wasel-radius-lg);
+  background: var(--wasel-surface);
+  box-shadow: var(--wasel-shadow);
+  padding: clamp(1.5rem, 4vw, 3rem);
+}
+
+.wasel-button {
+  border: 0;
+  border-radius: var(--wasel-radius-sm);
+  background: var(--wasel-brand-700);
+  color: white;
+  cursor: pointer;
+  font: inherit;
+  font-weight: 700;
+  padding-block: 0.75rem;
+  padding-inline: 1.25rem;
+}
+
+.wasel-button:focus-visible {
+  outline: 3px solid var(--wasel-brand-500);
+  outline-offset: 3px;
+}

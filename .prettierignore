@@ -1,0 +1,12 @@
+node_modules
+.turbo
+dist
+coverage
+.next
+.expo
+packages/database/generated
+pnpm-lock.yaml
+wasel_codex_product_spec.html
+phase-1.md
+apps/admin-web/next-env.d.ts
+apps/merchant-web/next-env.d.ts
