@@ -10,6 +10,8 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "3.872.0",
+    "@aws-sdk/s3-request-presigner": "3.872.0",
     "@nestjs/common": "11.1.28",
     "@nestjs/core": "11.1.28",
     "@nestjs/platform-express": "11.1.28",
@@ -28,12 +30,14 @@
     "pino": "10.3.1",
     "reflect-metadata": "0.2.2",
     "rxjs": "7.8.2",
+    "socket.io": "4.8.1",
     "zod": "4.4.3"
   },
   "devDependencies": {
     "@types/express": "5.0.6",
     "@types/multer": "2.0.0",
     "@types/node": "26.1.1",
+    "socket.io-client": "4.8.1",
     "tsup": "8.5.1",
     "tsx": "4.23.1",
     "typescript": "6.0.3"

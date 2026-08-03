@@ -42,7 +42,7 @@ export class AuthGuard implements CanActivate {
           userId,
           revokedAt: null,
           expiresAt: { gt: new Date() },
-          user: { status: 'ACTIVE' },
+          user: { status: { in: ['ACTIVE', 'PENDING'] } },
         },
         include: { user: true },
       });

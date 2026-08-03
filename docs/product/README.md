@@ -2,7 +2,7 @@
 
 The source specification supplied for this repository is
 [`../../wasel_codex_product_spec.html`](../../wasel_codex_product_spec.html).
-It is the primary product and architecture authority for Wasel.
+It is the primary product and architecture authority for WASSAL.
 
 Implementation proceeds one phase at a time. The current repository stops at
 Phase 1.

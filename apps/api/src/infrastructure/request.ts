@@ -19,12 +19,28 @@ export const Principal = createParamDecorator(
 export function parseInput<TSchema extends z.ZodType>(
   schema: TSchema,
   value: unknown,
+  options?: {
+    fieldForIssue?: (issue: {
+      message: string;
+      path: readonly PropertyKey[];
+    }) => { field: string; message: string } | undefined;
+    message?: string;
+  },
 ): z.infer<TSchema> {
   const result = schema.safeParse(value);
   if (!result.success) {
+    const fields: Record<string, string> = {};
+    for (const issue of result.error.issues) {
+      const mapped = options?.fieldForIssue?.(issue);
+      const field = mapped?.field ?? issue.path.map(String).join('.');
+      if (field && !fields[field]) {
+        fields[field] = mapped?.message ?? issue.message;
+      }
+    }
     throw new BadRequestException({
       code: 'validation_failed',
-      message: 'The request data is invalid.',
+      message: options?.message ?? 'The request data is invalid.',
+      fields,
       details: result.error.issues,
     });
   }

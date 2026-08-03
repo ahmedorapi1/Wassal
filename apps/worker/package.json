@@ -11,6 +11,7 @@
   },
   "dependencies": {
     "@wasel/config": "workspace:*",
+    "@wasel/database": "workspace:*",
     "@wasel/observability": "workspace:*",
     "bullmq": "5.80.10",
     "ioredis": "5.11.1",

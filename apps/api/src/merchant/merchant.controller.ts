@@ -34,8 +34,12 @@ const storeBaseSchema = z.object({
   name: z.string().trim().min(2).max(160),
   phone: egyptianPhoneSchema.optional(),
   addressLine: z.string().trim().min(5).max(500),
+  governorate: z.string().trim().min(2).max(120).optional(),
   area: z.string().trim().min(2).max(120),
   city: z.string().trim().min(2).max(120),
+  street: z.string().trim().min(2).max(240).optional(),
+  addressDetails: z.string().trim().min(5).max(500).optional(),
+  sourceMapsUrl: z.string().trim().url().max(1_000).optional(),
   workingHours: workingHoursSchema.optional(),
   active: z.boolean().optional(),
 });

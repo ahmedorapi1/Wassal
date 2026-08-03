@@ -6,8 +6,13 @@ import type { Metadata } from 'next';
 import type { PropsWithChildren } from 'react';
 
 export const metadata: Metadata = {
-  title: 'واصل | التجار',
-  description: 'إدارة ملف التاجر والفروع وفريق العمل في منصة واصل.',
+  title: 'SKKA | بوابة التاجر',
+  description:
+    'إدارة العملاء وعروض الأسعار وطلبات التوصيل في بوابة سِكّة للتاجر. كل طلب له سكة.',
+  icons: {
+    icon: '/brand/skka-logo.png',
+    apple: '/brand/skka-logo.png',
+  },
 };
 
 export default function RootLayout({ children }: PropsWithChildren) {

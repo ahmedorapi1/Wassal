@@ -1,0 +1,153 @@
+# Phase 2 worktree inventory
+
+This repository already contained uncommitted work when Phase 2 verification
+continued. The following is the complete `git status --short
+--untracked-files=all` inventory after implementation and verification. It
+includes user-provided source references and earlier in-progress Phase 1
+document-upload work as well as Phase 2 changes. No commit was created.
+
+```text
+ M .env.example
+ M README.md
+ M apps/admin-web/app/admin-app.test.tsx
+ M apps/admin-web/app/admin-app.tsx
+ M apps/admin-web/app/layout.tsx
+ M apps/admin-web/app/styles.css
+ M apps/admin-web/next-env.d.ts
+ M apps/api/src/app.controller.test.ts
+ M apps/api/src/app.controller.ts
+ M apps/api/src/app.module.ts
+ M apps/api/src/courier/courier-policy.test.ts
+ M apps/api/src/courier/courier.service.ts
+ M apps/api/src/infrastructure/tokens.ts
+ M apps/api/src/main.ts
+ M apps/api/src/phase-one.e2e.test.ts
+ M apps/courier-mobile/App.tsx
+ M apps/courier-mobile/app.json
+ M apps/courier-mobile/package.json
+ M apps/merchant-web/app/layout.tsx
+ M apps/merchant-web/app/merchant-app.test.tsx
+ M apps/merchant-web/app/merchant-app.tsx
+ M apps/merchant-web/app/styles.css
+ M apps/merchant-web/next-env.d.ts
+ M apps/worker/src/main.ts
+ M docs/adr/0001-modular-monolith.md
+ M docs/adr/0004-provider-ports.md
+ M docs/adr/0005-arabic-rtl-first.md
+ M docs/adr/README.md
+ M docs/architecture/README.md
+ M docs/architecture/rbac-matrix.md
+ M docs/product/README.md
+ M docs/product/phase-1-plan.md
+ M infrastructure/database/prisma/schema.prisma
+ M infrastructure/database/prisma/seed.ts
+ M package.json
+ M packages/config/src/env.ts
+ M packages/localization/src/index.test.ts
+ M packages/localization/src/index.ts
+ M packages/providers/src/index.ts
+ M packages/providers/src/interfaces.ts
+ M packages/providers/src/local-object-storage.provider.test.ts
+ M packages/providers/src/local-object-storage.provider.ts
+ M packages/ui/package.json
+ M packages/ui/src/index.ts
+ M packages/ui/src/styles.css
+ M packages/validation/src/index.ts
+ M phase-1.md
+ M pnpm-lock.yaml
+ M vitest.config.ts
+?? apps/admin-web/public/brand/adaptive-foreground.png
+?? apps/admin-web/public/brand/expo-icon.png
+?? apps/admin-web/public/brand/favicon.ico
+?? apps/admin-web/public/brand/favicon.png
+?? apps/admin-web/public/brand/helmet-illustration.png
+?? apps/admin-web/public/brand/icon-192.png
+?? apps/admin-web/public/brand/icon-512.png
+?? apps/admin-web/public/brand/motorcycle-illustration.png
+?? apps/admin-web/public/brand/parcel-illustration.png
+?? apps/admin-web/public/brand/primary-logo-transparent.png
+?? apps/admin-web/public/brand/primary-mark.png
+?? apps/admin-web/public/brand/primary-wordmark.png
+?? apps/admin-web/public/brand/splash.png
+?? apps/api/src/admin/phase-two-admin.controller.ts
+?? apps/api/src/admin/phase-two-admin.service.ts
+?? apps/api/src/courier/courier.service.test.ts
+?? apps/api/src/customers/customers.controller.ts
+?? apps/api/src/customers/customers.service.ts
+?? apps/api/src/merchant/merchant-context.ts
+?? apps/api/src/orders/order-domain.test.ts
+?? apps/api/src/orders/order-domain.ts
+?? apps/api/src/orders/orders.controller.ts
+?? apps/api/src/orders/orders.service.ts
+?? apps/api/src/phase-two.e2e.test.ts
+?? apps/courier-mobile/assets.d.ts
+?? apps/courier-mobile/assets/brand/adaptive-foreground.png
+?? apps/courier-mobile/assets/brand/expo-icon.png
+?? apps/courier-mobile/assets/brand/favicon.ico
+?? apps/courier-mobile/assets/brand/favicon.png
+?? apps/courier-mobile/assets/brand/helmet-illustration.png
+?? apps/courier-mobile/assets/brand/icon-192.png
+?? apps/courier-mobile/assets/brand/icon-512.png
+?? apps/courier-mobile/assets/brand/motorcycle-illustration.png
+?? apps/courier-mobile/assets/brand/parcel-illustration.png
+?? apps/courier-mobile/assets/brand/primary-logo-transparent.png
+?? apps/courier-mobile/assets/brand/primary-mark.png
+?? apps/courier-mobile/assets/brand/primary-wordmark.png
+?? apps/courier-mobile/assets/brand/splash.png
+?? apps/courier-mobile/document-upload.test.ts
+?? apps/courier-mobile/document-upload.ts
+?? apps/merchant-web/public/brand/adaptive-foreground.png
+?? apps/merchant-web/public/brand/expo-icon.png
+?? apps/merchant-web/public/brand/favicon.ico
+?? apps/merchant-web/public/brand/favicon.png
+?? apps/merchant-web/public/brand/helmet-illustration.png
+?? apps/merchant-web/public/brand/icon-192.png
+?? apps/merchant-web/public/brand/icon-512.png
+?? apps/merchant-web/public/brand/motorcycle-illustration.png
+?? apps/merchant-web/public/brand/parcel-illustration.png
+?? apps/merchant-web/public/brand/primary-logo-transparent.png
+?? apps/merchant-web/public/brand/primary-mark.png
+?? apps/merchant-web/public/brand/primary-wordmark.png
+?? apps/merchant-web/public/brand/splash.png
+?? docs/adr/0010-versioned-pricing-and-order-snapshots.md
+?? docs/adr/0011-postgis-zones-and-maps-port.md
+?? docs/api/phase-2-routes.md
+?? docs/architecture/customer-address-design.md
+?? docs/architecture/maps-provider.md
+?? docs/architecture/phase-2-data-model.md
+?? docs/architecture/phase-2-order-domain.md
+?? docs/architecture/quote-lifecycle.md
+?? docs/architecture/service-zones-pricing.md
+?? docs/product/phase-2-completion.md
+?? docs/product/phase-2-demo-data.md
+?? docs/product/phase-2-plan.md
+?? docs/product/phase-2-worktree-inventory.md
+?? docs/product/wassal-branding.md
+?? infrastructure/database/prisma/migrations/20260723160000_phase_2_orders_pricing_zones/migration.sql
+?? packages/providers/src/local-maps.provider.test.ts
+?? packages/providers/src/local-maps.provider.ts
+?? packages/ui/assets/brand/adaptive-foreground.png
+?? packages/ui/assets/brand/expo-icon.png
+?? packages/ui/assets/brand/favicon.ico
+?? packages/ui/assets/brand/favicon.png
+?? packages/ui/assets/brand/helmet-illustration.png
+?? packages/ui/assets/brand/icon-16.png
+?? packages/ui/assets/brand/icon-180.png
+?? packages/ui/assets/brand/icon-192.png
+?? packages/ui/assets/brand/icon-32.png
+?? packages/ui/assets/brand/icon-48.png
+?? packages/ui/assets/brand/icon-512.png
+?? packages/ui/assets/brand/motorcycle-illustration.png
+?? packages/ui/assets/brand/parcel-illustration.png
+?? packages/ui/assets/brand/primary-logo-transparent.png
+?? packages/ui/assets/brand/primary-logo.png
+?? packages/ui/assets/brand/primary-mark-source.png
+?? packages/ui/assets/brand/primary-mark.png
+?? packages/ui/assets/brand/primary-wordmark.png
+?? packages/ui/assets/brand/splash.png
+?? packages/ui/src/brand.ts
+?? packages/validation/src/phase-two.test.ts
+?? packages/validation/src/phase-two.ts
+?? phase-2.md
+?? reference.png
+```

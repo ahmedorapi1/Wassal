@@ -10,7 +10,7 @@ payments, storage, push, or phone-masking vendors.
 
 ## Decision
 
-Domain/application services depend on provider interfaces owned by Wasel. Vendor
+Domain/application services depend on provider interfaces owned by WASSAL. Vendor
 SDKs are isolated in adapters selected by the composition root. The local mock
 OTP adapter refuses to run in production.
 

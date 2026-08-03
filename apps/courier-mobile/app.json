@@ -1,18 +1,48 @@
 {
   "expo": {
-    "name": "Wasel Courier",
-    "slug": "wasel-courier",
+    "name": "SKKA Courier",
+    "slug": "wassal-courier",
     "version": "0.0.1",
     "orientation": "portrait",
+    "icon": "./assets/brand/skka-logo.png",
+    "splash": {
+      "image": "./assets/brand/skka-logo.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#FFFFFF"
+    },
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "com.wasel.courier"
+      "bundleIdentifier": "com.wassal.courier"
     },
     "android": {
-      "package": "com.wasel.courier"
+      "package": "com.wassal.courier",
+      "blockedPermissions": [
+        "android.permission.ACCESS_COARSE_LOCATION",
+        "android.permission.ACCESS_FINE_LOCATION",
+        "android.permission.ACCESS_BACKGROUND_LOCATION"
+      ],
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/brand/skka-logo.png",
+        "backgroundColor": "#FFFFFF"
+      }
     },
-    "plugins": ["expo-secure-store"]
+    "plugins": [
+      "expo-secure-store",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "تستخدم سِكّة صورك لاختيار مستندات التحقق فقط.",
+          "microphonePermission": false
+        }
+      ]
+    ],
+    "extra": {
+      "privacy": {
+        "liveTracking": false,
+        "backgroundLocation": false
+      }
+    }
   }
 }

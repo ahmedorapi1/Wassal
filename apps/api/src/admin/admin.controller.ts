@@ -30,6 +30,11 @@ const filterSchema = z.object({
     ])
     .optional(),
   search: z.string().trim().max(160).optional(),
+  city: z.string().trim().max(120).optional(),
+  serviceZoneId: z.string().uuid().optional(),
+  submittedFrom: z.coerce.date().optional(),
+  submittedTo: z.coerce.date().optional(),
+  documentExpiryBefore: z.coerce.date().optional(),
 });
 const versionSchema = z.object({
   version: z.coerce.number().int().positive(),
@@ -52,6 +57,11 @@ export class AdminController {
   @Get('couriers')
   public couriers(@Query() query: unknown) {
     return this.admin.couriers(parseInput(filterSchema, query));
+  }
+
+  @Get('courier-verification/summary')
+  public courierVerificationSummary() {
+    return this.admin.courierVerificationSummary();
   }
 
   @Get('couriers/:courierId')
@@ -121,6 +131,21 @@ export class AdminController {
     return this.transition(actor, courierId, 'reject', reasonSchema, body);
   }
 
+  @Post('couriers/:courierId/request-changes')
+  public requestCourierChanges(
+    @Principal() actor: SessionPrincipal,
+    @Param('courierId') courierId: string,
+    @Body() body: unknown,
+  ) {
+    return this.transition(
+      actor,
+      courierId,
+      'request_changes',
+      reasonSchema,
+      body,
+    );
+  }
+
   @Post('couriers/:courierId/suspend')
   public suspendCourier(
     @Principal() actor: SessionPrincipal,
@@ -159,6 +184,31 @@ export class AdminController {
     return this.admin.merchant(merchantId);
   }
 
+  @Post('merchants/:merchantId/:action')
+  public transitionMerchant(
+    @Principal() actor: SessionPrincipal,
+    @Param('merchantId') merchantId: string,
+    @Param('action') action: string,
+    @Body() body: unknown,
+  ) {
+    const merchantAction = z
+      .enum(['approve', 'reject', 'request-changes', 'suspend', 'reactivate'])
+      .parse(action);
+    const input = parseInput(
+      ['reject', 'request-changes', 'suspend'].includes(merchantAction)
+        ? reasonSchema
+        : versionSchema,
+      body,
+    );
+    return this.admin.transitionMerchant(this.actor(actor), merchantId, {
+      action:
+        merchantAction === 'request-changes'
+          ? 'request_changes'
+          : merchantAction,
+      ...input,
+    });
+  }
+
   @Post('users/:userId/status')
   public userStatus(
     @Principal() actor: SessionPrincipal,
@@ -175,7 +225,7 @@ export class AdminController {
   private transition(
     actor: SessionPrincipal,
     courierId: string,
-    action: 'approve' | 'reject' | 'suspend' | 'reactivate',
+    action: 'approve' | 'request_changes' | 'reject' | 'suspend' | 'reactivate',
     schema: typeof versionSchema | typeof reasonSchema,
     body: unknown,
   ) {

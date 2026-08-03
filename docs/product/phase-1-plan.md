@@ -4,7 +4,7 @@ Status: implemented on 2026-07-23.
 
 Phase 1 delivers identity, merchant setup, courier onboarding, document review,
 and administration. The product and architecture specification in
-`wasel_codex_product_spec.html` remains authoritative.
+`wasel_codex_product_spec.html` remains the authoritative WASSAL specification.
 
 ## Scope boundary
 

@@ -21,6 +21,7 @@ import { Roles } from '../auth/roles.decorator.js';
 import { RolesGuard } from '../auth/roles.guard.js';
 import { parseInput, Principal } from '../infrastructure/request.js';
 import { CourierService } from './courier.service.js';
+import { inlineContentDisposition } from './file-response.js';
 
 const profileSchema = z.object({
   fullName: z.string().trim().min(2).max(160),
@@ -166,9 +167,11 @@ export class CourierController {
     response.setHeader('Content-Type', file.contentType);
     response.setHeader(
       'Content-Disposition',
-      `inline; filename="${encodeURIComponent(file.filename)}"`,
+      inlineContentDisposition(file.filename),
     );
     response.setHeader('Cache-Control', 'private, no-store');
+    response.setHeader('X-Content-Type-Options', 'nosniff');
+    response.setHeader('Content-Length', String(file.bytes.byteLength));
     response.send(Buffer.from(file.bytes));
   }
 

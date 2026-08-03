@@ -10,4 +10,9 @@
 - [ADR 0008 — Private, versioned courier documents](0008-private-versioned-courier-documents.md)
 - [ADR 0009 — Transactional courier verification](0009-transactional-courier-verification.md)
 
+- [ADR 0010 — Versioned pricing and immutable order snapshots](0010-versioned-pricing-and-order-snapshots.md)
+- [ADR 0011 — PostGIS zones and a provider-neutral maps port](0011-postgis-zones-and-maps-port.md)
+- [ADR 0012 — Atomic courier-selected acceptance](0012-atomic-courier-acceptance.md)
+- [ADR 0013 — Append-only courier accounting](0013-append-only-courier-accounting.md)
+
 ADRs are append-only. Superseded decisions remain in history and link to their replacement.

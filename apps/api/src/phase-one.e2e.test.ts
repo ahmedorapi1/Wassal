@@ -3,6 +3,7 @@ import 'dotenv/config';
 import type { INestApplication } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { createDatabaseClient } from '@wasel/database';
+import { LocalObjectStorageProvider } from '@wasel/providers';
 import Redis from 'ioredis';
 import request from 'supertest';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -15,11 +16,31 @@ describe('Phase 1 HTTP authentication and RBAC', () => {
   const phone = `+2015${uniqueDigits}`;
   const merchantPhoneA = `+2012${uniqueDigits}`;
   const merchantPhoneB = `+2011${uniqueDigits}`;
+  const uploadPhone = `+2010${uniqueDigits}`;
   const operationsPhone = '+201001000004';
   const pendingCourierId = '40000000-0000-4000-8000-000000000012';
-  const testPhones = [phone, merchantPhoneA, merchantPhoneB];
+  const testPhones = [phone, merchantPhoneA, merchantPhoneB, uploadPhone];
+  const allOtpPhones = [...testPhones, operationsPhone];
   const databaseUrl = process.env.DATABASE_URL;
   const redisUrl = process.env.REDIS_URL;
+  let cachedOperationsAuthorization: string | undefined;
+
+  async function operationsAuthorization(): Promise<string> {
+    if (cachedOperationsAuthorization) return cachedOperationsAuthorization;
+    const challenge = await request(app.getHttpServer())
+      .post('/api/v1/auth/request-otp')
+      .send({ phone: operationsPhone })
+      .expect(201);
+    const verified = await request(app.getHttpServer())
+      .post('/api/v1/auth/verify-otp')
+      .send({
+        challengeId: challenge.body.challengeId,
+        code: process.env.OTP_MOCK_CODE ?? '123456',
+      })
+      .expect(201);
+    cachedOperationsAuthorization = `Bearer ${verified.body.tokens.accessToken}`;
+    return cachedOperationsAuthorization;
+  }
 
   beforeAll(async () => {
     if (!databaseUrl || !redisUrl) {
@@ -27,6 +48,21 @@ describe('Phase 1 HTTP authentication and RBAC', () => {
         'DATABASE_URL and REDIS_URL are required for integration tests.',
       );
     }
+    const database = createDatabaseClient(databaseUrl);
+    await database.otpChallenge.deleteMany({
+      where: { phone: { in: allOtpPhones } },
+    });
+    await database.$disconnect();
+    const redis = new Redis(redisUrl);
+    const phoneKeys = (
+      await Promise.all(
+        allOtpPhones.map((testPhone) => redis.keys(`otp:*${testPhone}*`)),
+      )
+    ).flat();
+    const ipKeys = await redis.keys('otp:ip:*');
+    const cleanupKeys = [...phoneKeys, ...ipKeys];
+    if (cleanupKeys.length > 0) await redis.del(...cleanupKeys);
+    await redis.quit();
     app = await NestFactory.create(AppModule, { logger: false });
     app.setGlobalPrefix('api/v1');
     await app.init();
@@ -50,10 +86,36 @@ describe('Phase 1 HTTP authentication and RBAC', () => {
           ),
         ),
       ];
+      const courierProfiles = await database.courierProfile.findMany({
+        where: { userId: { in: userIds } },
+        select: { id: true },
+      });
+      const courierIds = courierProfiles.map(({ id }) => id);
+      const storedDocuments = await database.courierDocument.findMany({
+        where: { courierId: { in: courierIds } },
+        select: { storageKey: true },
+      });
+      if (process.env.STORAGE_LOCAL_DIR) {
+        const storage = new LocalObjectStorageProvider(
+          process.env.STORAGE_LOCAL_DIR,
+        );
+        for (const { storageKey } of storedDocuments) {
+          await storage.deleteObject(storageKey);
+        }
+      }
       await database.otpChallenge.deleteMany({
-        where: { phone: { in: [...testPhones, operationsPhone] } },
+        where: { phone: { in: allOtpPhones } },
       });
       await database.session.deleteMany({ where: { userId: { in: userIds } } });
+      await database.courierDocument.deleteMany({
+        where: { courierId: { in: courierIds } },
+      });
+      await database.vehicle.deleteMany({
+        where: { courierId: { in: courierIds } },
+      });
+      await database.courierProfile.deleteMany({
+        where: { id: { in: courierIds } },
+      });
       await database.merchantMembership.deleteMany({
         where: { userId: { in: userIds } },
       });
@@ -96,10 +158,12 @@ describe('Phase 1 HTTP authentication and RBAC', () => {
       const redis = new Redis(redisUrl);
       const keys = (
         await Promise.all(
-          testPhones.map((testPhone) => redis.keys(`otp:*${testPhone}*`)),
+          allOtpPhones.map((testPhone) => redis.keys(`otp:*${testPhone}*`)),
         )
       ).flat();
-      if (keys.length > 0) await redis.del(...keys);
+      const ipKeys = await redis.keys('otp:ip:*');
+      const cleanupKeys = [...keys, ...ipKeys];
+      if (cleanupKeys.length > 0) await redis.del(...cleanupKeys);
       await redis.quit();
     }
     await app.close();
@@ -188,15 +252,18 @@ describe('Phase 1 HTTP authentication and RBAC', () => {
       .send({
         name: 'Owned test store',
         phone: merchantPhoneA,
-        addressLine: '12 Test Street',
-        area: 'Dokki',
-        city: 'Giza',
-        latitude: 30.038542,
-        longitude: 31.205856,
+        addressLine: '12 Test Street, Damietta',
+        governorate: 'دمياط',
+        area: 'وسط دمياط',
+        city: 'دمياط',
+        street: 'Test Street',
+        addressDetails: 'Building 12',
+        latitude: 31.41754,
+        longitude: 31.81444,
       })
       .expect(201);
-    expect(store.body.latitude).toBeCloseTo(30.038542);
-    expect(store.body.longitude).toBeCloseTo(31.205856);
+    expect(store.body.latitude).toBeCloseTo(31.41754);
+    expect(store.body.longitude).toBeCloseTo(31.81444);
 
     await request(app.getHttpServer())
       .get(`/api/v1/merchants/current/stores/${store.body.id}`)
@@ -204,19 +271,175 @@ describe('Phase 1 HTTP authentication and RBAC', () => {
       .expect(404);
   });
 
-  it('protects courier review with reasons, versions, and auditable transitions', async () => {
+  it('uploads real multipart JPG, PNG, and PDF bytes idempotently and privately', async () => {
     const challenge = await request(app.getHttpServer())
       .post('/api/v1/auth/request-otp')
-      .send({ phone: operationsPhone })
+      .send({ phone: uploadPhone })
       .expect(201);
     const verified = await request(app.getHttpServer())
       .post('/api/v1/auth/verify-otp')
       .send({
         challengeId: challenge.body.challengeId,
         code: process.env.OTP_MOCK_CODE ?? '123456',
+        registrationRole: 'courier',
       })
       .expect(201);
     const authorization = `Bearer ${verified.body.tokens.accessToken}`;
+
+    await request(app.getHttpServer())
+      .post('/api/v1/couriers/profile')
+      .set('Authorization', authorization)
+      .send({
+        fullName: 'Multipart Test Courier',
+        preferredCity: 'Giza',
+        emergencyContactName: 'Test Contact',
+        emergencyContactPhone: '+201000000001',
+      })
+      .expect(201);
+
+    const samples = [
+      {
+        type: 'NATIONAL_ID_FRONT',
+        filename: 'identity photo.jpg',
+        contentType: 'image/jpeg',
+        bytes: Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0x01]),
+      },
+      {
+        type: 'NATIONAL_ID_BACK',
+        filename: 'البطاقة الخلفية.png',
+        contentType: 'image/png',
+        bytes: Buffer.concat([
+          Buffer.from('89504e470d0a1a0a', 'hex'),
+          Buffer.from([0x01]),
+        ]),
+      },
+      {
+        type: 'DRIVER_LICENSE',
+        filename: 'driving license.pdf',
+        contentType: 'application/pdf',
+        bytes: Buffer.from('%PDF-1.4\nintegration test'),
+      },
+    ] as const;
+    const uploadedIds: string[] = [];
+
+    for (const sample of samples) {
+      const uploaded = await request(app.getHttpServer())
+        .post('/api/v1/couriers/documents')
+        .set('Authorization', authorization)
+        .field('type', sample.type)
+        .field('expiresAt', '2030-12-31')
+        .attach('file', sample.bytes, {
+          filename: sample.filename,
+          contentType: sample.contentType,
+        })
+        .expect(201);
+      expect(uploaded.body).toMatchObject({
+        type: sample.type,
+        originalFilename: sample.filename,
+        contentType: sample.contentType,
+        sizeBytes: sample.bytes.length,
+      });
+      expect(uploaded.body.storageKey).toBeUndefined();
+      uploadedIds.push(uploaded.body.id as string);
+    }
+
+    const retried = await request(app.getHttpServer())
+      .post('/api/v1/couriers/documents')
+      .set('Authorization', authorization)
+      .field('type', samples[0].type)
+      .field('expiresAt', '2030-12-31')
+      .attach('file', samples[0].bytes, {
+        filename: samples[0].filename,
+        contentType: samples[0].contentType,
+      })
+      .expect(201);
+    expect(retried.body.id).toBe(uploadedIds[0]);
+
+    const documents = await request(app.getHttpServer())
+      .get('/api/v1/couriers/documents')
+      .set('Authorization', authorization)
+      .expect(200);
+    expect(
+      documents.body.filter((document: { isCurrent: boolean }) =>
+        Boolean(document.isCurrent),
+      ),
+    ).toHaveLength(3);
+
+    const database = createDatabaseClient(databaseUrl!);
+    try {
+      const storedRows = await database.courierDocument.findMany({
+        where: { id: { in: uploadedIds } },
+        orderBy: { createdAt: 'asc' },
+      });
+      expect(storedRows).toHaveLength(3);
+      const storage = new LocalObjectStorageProvider(
+        process.env.STORAGE_LOCAL_DIR!,
+      );
+      for (const row of storedRows) {
+        const index = uploadedIds.indexOf(row.id);
+        expect(index).toBeGreaterThanOrEqual(0);
+        expect(row).toMatchObject({
+          contentType: samples[index]!.contentType,
+          sizeBytes: samples[index]!.bytes.length,
+          originalFilename: samples[index]!.filename,
+          isCurrent: true,
+        });
+        expect(
+          Buffer.from((await storage.getObject(row.storageKey)).bytes),
+        ).toEqual(samples[index]!.bytes);
+      }
+    } finally {
+      await database.$disconnect();
+    }
+
+    for (const [index, documentId] of uploadedIds.entries()) {
+      const downloaded = await request(app.getHttpServer())
+        .get(`/api/v1/couriers/documents/${documentId}/file`)
+        .set('Authorization', authorization)
+        .expect('Content-Type', samples[index]!.contentType)
+        .expect('Cache-Control', 'private, no-store')
+        .expect(200);
+      expect(Buffer.from(downloaded.body)).toEqual(samples[index]!.bytes);
+    }
+
+    const operations = await operationsAuthorization();
+    const adminDownload = await request(app.getHttpServer())
+      .get(`/api/v1/couriers/documents/${uploadedIds[2]}/file`)
+      .set('Authorization', operations)
+      .expect('Content-Type', 'application/pdf')
+      .expect('Cache-Control', 'private, no-store')
+      .expect('X-Content-Type-Options', 'nosniff')
+      .expect('Content-Disposition', /filename\*=/)
+      .expect(200);
+    expect(Buffer.from(adminDownload.body)).toEqual(samples[2].bytes);
+
+    await request(app.getHttpServer())
+      .post('/api/v1/couriers/documents')
+      .set('Authorization', authorization)
+      .field('type', 'PROFILE_PHOTO')
+      .attach('file', Buffer.from('<script>not an image</script>'), {
+        filename: 'invalid.jpg',
+        contentType: 'image/jpeg',
+      })
+      .expect(400);
+
+    await request(app.getHttpServer())
+      .post('/api/v1/couriers/documents')
+      .set('Authorization', authorization)
+      .field('type', 'PROFILE_PHOTO')
+      .attach('file', Buffer.alloc(5_242_881, 0), {
+        filename: 'too-large.jpg',
+        contentType: 'image/jpeg',
+      })
+      .expect(413);
+
+    await request(app.getHttpServer())
+      .get(`/api/v1/couriers/documents/${uploadedIds[0]}/file`)
+      .expect(401);
+  });
+
+  it('protects courier review with reasons, versions, and auditable transitions', async () => {
+    const authorization = await operationsAuthorization();
 
     const courier = await request(app.getHttpServer())
       .get(`/api/v1/admin/couriers/${pendingCourierId}`)

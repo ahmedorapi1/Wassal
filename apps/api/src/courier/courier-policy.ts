@@ -24,6 +24,23 @@ export type EligibilityResult = {
   reasons: string[];
 };
 
+export type CourierZoneMembership = {
+  serviceZoneId: string;
+  active: boolean;
+  serviceZone: { status: string };
+};
+
+export function eligibleServiceZoneIds(
+  memberships: readonly CourierZoneMembership[],
+): string[] {
+  return memberships
+    .filter(
+      (membership) =>
+        membership.active && membership.serviceZone.status === 'ACTIVE',
+    )
+    .map((membership) => membership.serviceZoneId);
+}
+
 export function courierOperationalEligibility(
   input: EligibilityInput,
 ): EligibilityResult {

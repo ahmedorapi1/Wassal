@@ -5,7 +5,7 @@
 
 ## Context
 
-Wasel launches in Egypt. Treating Arabic as a later translation would embed LTR
+WASSAL launches in Egypt. Treating Arabic as a later translation would embed LTR
 assumptions throughout layouts and content.
 
 ## Decision

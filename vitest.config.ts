@@ -11,6 +11,10 @@ export default defineConfig({
     },
   },
   test: {
+    // Integration suites share the local PostGIS/Redis stack and mutate seeded
+    // review/order records. Run files serially so one Nest lifecycle cannot
+    // close or reset shared resources underneath another suite.
+    fileParallelism: false,
     coverage: {
       provider: 'v8',
       reporter: ['text', 'html'],

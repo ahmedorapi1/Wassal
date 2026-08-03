@@ -33,4 +33,31 @@ describe('LocalObjectStorageProvider', () => {
       'Invalid object key',
     );
   });
+
+  it('deletes bytes when a later database operation must be rolled back', async () => {
+    directory = await mkdtemp(join(tmpdir(), 'wasel-storage-'));
+    const provider = new LocalObjectStorageProvider(directory);
+    const objectKey = 'courier-id/failed-document';
+    await provider.putObject({
+      objectKey,
+      contentType: 'image/png',
+      bytes: Buffer.from('temporary bytes'),
+    });
+
+    await provider.deleteObject(objectKey);
+
+    await expect(provider.getObject(objectKey)).rejects.toMatchObject({
+      code: 'ENOENT',
+    });
+    await expect(
+      provider.putObject({
+        objectKey,
+        contentType: 'application/pdf',
+        bytes: Buffer.from('%PDF-1.4'),
+      }),
+    ).resolves.toBeUndefined();
+    expect((await provider.getObject(objectKey)).contentType).toBe(
+      'application/pdf',
+    );
+  });
 });

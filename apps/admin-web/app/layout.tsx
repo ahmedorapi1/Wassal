@@ -6,8 +6,12 @@ import type { Metadata } from 'next';
 import type { PropsWithChildren } from 'react';
 
 export const metadata: Metadata = {
-  title: 'واصل | الإدارة',
-  description: 'مراجعة المندوبين وإدارة التحقق في منصة واصل.',
+  title: 'SKKA | إدارة العمليات',
+  description: 'إدارة طلبات التوصيل ومناطق الخدمة والتسعير والتحقق في سِكّة.',
+  icons: {
+    icon: '/brand/skka-logo.png',
+    apple: '/brand/skka-logo.png',
+  },
 };
 
 export default function RootLayout({ children }: PropsWithChildren) {

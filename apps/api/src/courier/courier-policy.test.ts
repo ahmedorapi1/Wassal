@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   assertRecognizedDocumentSignature,
   courierOperationalEligibility,
+  eligibleServiceZoneIds,
   requiredCourierDocumentTypes,
 } from './courier-policy.js';
 
@@ -41,6 +42,38 @@ describe('courier operational eligibility', () => {
     expect(result.reasons).toContain('expired_driver_license');
   });
 
+  it('uses only active courier memberships in active service zones', () => {
+    expect(
+      eligibleServiceZoneIds([
+        {
+          serviceZoneId: 'eligible',
+          active: true,
+          serviceZone: { status: 'ACTIVE' },
+        },
+        {
+          serviceZoneId: 'membership-disabled',
+          active: false,
+          serviceZone: { status: 'ACTIVE' },
+        },
+        {
+          serviceZoneId: 'zone-disabled',
+          active: true,
+          serviceZone: { status: 'INACTIVE' },
+        },
+      ]),
+    ).toEqual(['eligible']);
+  });
+
+  it.each([
+    [Buffer.from([0xff, 0xd8, 0xff, 0xe0]), 'image/jpeg'],
+    [Buffer.from('89504e470d0a1a0a', 'hex'), 'image/png'],
+    [Buffer.from('%PDF-1.4\n'), 'application/pdf'],
+  ])('accepts recognized file signature for %s', (bytes, contentType) => {
+    expect(() =>
+      assertRecognizedDocumentSignature(bytes, contentType),
+    ).not.toThrow();
+  });
+
   it('rejects a file whose magic bytes do not match its media type', () => {
     expect(() =>
       assertRecognizedDocumentSignature(
@@ -51,8 +84,8 @@ describe('courier operational eligibility', () => {
     expect(() =>
       assertRecognizedDocumentSignature(
         Buffer.from('%PDF-1.4\n'),
-        'application/pdf',
+        'image/jpeg',
       ),
-    ).not.toThrow();
+    ).toThrow('File signature');
   });
 });

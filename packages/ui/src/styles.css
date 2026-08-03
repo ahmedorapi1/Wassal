@@ -1,13 +1,31 @@
 :root {
   color-scheme: light;
-  --wasel-brand-50: #effcf8;
-  --wasel-brand-500: #0f9f8f;
-  --wasel-brand-700: #087267;
-  --wasel-ink: #13232e;
-  --wasel-muted: #60727e;
-  --wasel-surface: #ffffff;
-  --wasel-canvas: #f3f7f6;
-  --wasel-border: #d8e5e1;
+  --brand-primary: #002f84;
+  --brand-primary-hover: #00256a;
+  --brand-primary-dark: #001c50;
+  --brand-accent: #fe6c10;
+  --brand-accent-hover: #dc5400;
+  --brand-accent-text: #b54100;
+  --brand-surface: #ffffff;
+  --brand-background: #f5f7fb;
+  --brand-text: #101a2e;
+  --brand-text-muted: #5d687b;
+  --brand-border: #d9dfeb;
+  --brand-success: #147a55;
+  --brand-warning: #9b6500;
+  --brand-danger: #b42318;
+  --brand-focus: #fe6c10;
+  --brand-on-primary: #ffffff;
+  --brand-primary-soft: #eaf0fb;
+  --brand-accent-soft: #fff0e6;
+  --wasel-brand-50: var(--brand-primary-soft);
+  --wasel-brand-500: var(--brand-primary);
+  --wasel-brand-700: var(--brand-primary-hover);
+  --wasel-ink: var(--brand-text);
+  --wasel-muted: var(--brand-text-muted);
+  --wasel-surface: var(--brand-surface);
+  --wasel-canvas: var(--brand-background);
+  --wasel-border: var(--brand-border);
   --wasel-radius-sm: 0.75rem;
   --wasel-radius-lg: 1.5rem;
   --wasel-shadow: 0 1.25rem 3rem rgb(19 35 46 / 10%);
@@ -39,7 +57,7 @@ body {
 .wasel-button {
   border: 0;
   border-radius: var(--wasel-radius-sm);
-  background: var(--wasel-brand-700);
+  background: var(--brand-primary);
   color: white;
   cursor: pointer;
   font: inherit;
@@ -49,6 +67,15 @@ body {
 }
 
 .wasel-button:focus-visible {
-  outline: 3px solid var(--wasel-brand-500);
+  outline: 3px solid var(--brand-focus);
   outline-offset: 3px;
+}
+
+.wasel-button:hover:not(:disabled) {
+  background: var(--brand-primary-hover);
+}
+
+.wasel-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
 }

@@ -1,4 +1,4 @@
-import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { dirname, resolve, sep } from 'node:path';
 
 import type { ObjectStorageProvider } from './interfaces.js';
@@ -35,6 +35,11 @@ export class LocalObjectStorageProvider implements ObjectStorageProvider {
         this.#contentTypes.get(objectKey) ?? 'application/octet-stream',
       bytes: await readFile(this.safePath(objectKey)),
     };
+  }
+
+  public async deleteObject(objectKey: string): Promise<void> {
+    await rm(this.safePath(objectKey), { force: true });
+    this.#contentTypes.delete(objectKey);
   }
 
   private safePath(objectKey: string): string {

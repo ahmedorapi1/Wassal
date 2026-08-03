@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ConflictException,
   ForbiddenException,
   Inject,
@@ -10,13 +11,18 @@ import { normalizeEgyptianPhone } from '@wasel/validation';
 
 import { writeAudit } from '../infrastructure/audit.js';
 import { DATABASE } from '../infrastructure/tokens.js';
+import { LocationService } from '../location/location.service.js';
 
 type StoreInput = {
   name: string;
   phone?: string;
   addressLine: string;
+  governorate?: string;
   area: string;
   city: string;
+  street?: string;
+  addressDetails?: string;
+  sourceMapsUrl?: string;
   latitude: number;
   longitude: number;
   workingHours?: Prisma.InputJsonValue;
@@ -35,6 +41,7 @@ const merchantDatabaseRole: Record<MerchantRole, UserRole> = {
 export class MerchantService {
   public constructor(
     @Inject(DATABASE) private readonly database: PrismaClient,
+    @Inject(LocationService) private readonly location: LocationService,
   ) {}
 
   public async create(
@@ -110,6 +117,16 @@ export class MerchantService {
   public async createStore(userId: string, input: StoreInput) {
     const membership = await this.membership(userId);
     this.requireMembershipRole(membership.role, ['OWNER', 'MANAGER']);
+    const validation = await this.location.validatePickup({
+      latitude: input.latitude,
+      longitude: input.longitude,
+    });
+    const serviceZone = validation.serviceZone;
+    if (!validation.supported || !serviceZone) {
+      throw new BadRequestException(
+        'موقع الفرع خارج نطاقات الاستلام النشطة حالياً.',
+      );
+    }
     const store = await this.database.$transaction(async (transaction) => {
       const created = await transaction.store.create({
         data: {
@@ -119,8 +136,11 @@ export class MerchantService {
             ? { phone: normalizeEgyptianPhone(input.phone) }
             : {}),
           addressLine: input.addressLine,
+          governorate: input.governorate,
           area: input.area,
           city: input.city,
+          street: input.street,
+          addressDetails: input.addressDetails,
           ...(input.workingHours ? { workingHours: input.workingHours } : {}),
           status: input.active === false ? 'INACTIVE' : 'ACTIVE',
         },
@@ -139,6 +159,10 @@ export class MerchantService {
         action: 'store.created',
         entityType: 'Store',
         entityId: created.id,
+        metadata: {
+          serviceZoneId: serviceZone.id,
+          sourceMapsUrl: input.sourceMapsUrl ?? null,
+        },
       });
       return created;
     });
@@ -154,25 +178,52 @@ export class MerchantService {
         name: string;
         phone: string | null;
         addressLine: string;
+        governorate: string | null;
         area: string;
         city: string;
+        street: string | null;
+        addressDetails: string | null;
         workingHours: Prisma.JsonValue;
         status: string;
         version: number;
         latitude: number | null;
         longitude: number | null;
+        coverageStatus:
+          'INSIDE_ACTIVE_ZONE' | 'OUTSIDE_ACTIVE_ZONES' | 'NO_LOCATION';
         createdAt: Date;
         updatedAt: Date;
       }>
     >`
       SELECT
-        "id", "merchantId", "name", "phone", "addressLine", "area", "city",
-        "workingHours", "status", "version", "createdAt", "updatedAt",
-        ST_Y("location"::geometry) AS "latitude",
-        ST_X("location"::geometry) AS "longitude"
-      FROM "Store"
-      WHERE "merchantId" = ${membership.merchantId}::uuid
-      ORDER BY "createdAt" ASC
+        s."id", s."merchantId", s."name", s."phone", s."addressLine",
+        s."governorate", s."area", s."city", s."street", s."addressDetails",
+        s."workingHours", s."status", s."version", s."createdAt", s."updatedAt",
+        ST_Y(s."location"::geometry) AS "latitude",
+        ST_X(s."location"::geometry) AS "longitude",
+        CASE
+          WHEN s."location" IS NULL THEN 'NO_LOCATION'
+          WHEN EXISTS (
+            SELECT 1
+            FROM "ServiceZone" z
+            WHERE z."status" = 'ACTIVE'
+              AND z."allowedPickup" = true
+              AND ST_DWithin(
+                ST_SetSRID(
+                  ST_MakePoint(
+                    z."centerLongitude"::double precision,
+                    z."centerLatitude"::double precision
+                  ),
+                  4326
+                )::geography,
+                s."location",
+                z."radiusKm"::double precision * 1000
+              )
+          ) THEN 'INSIDE_ACTIVE_ZONE'
+          ELSE 'OUTSIDE_ACTIVE_ZONES'
+        END AS "coverageStatus"
+      FROM "Store" s
+      WHERE s."merchantId" = ${membership.merchantId}::uuid
+      ORDER BY s."createdAt" ASC
     `;
   }
 
@@ -189,7 +240,19 @@ export class MerchantService {
     const membership = await this.membership(userId);
     this.requireMembershipRole(membership.role, ['OWNER', 'MANAGER']);
     await this.storeById(membership.merchantId, storeId);
-    const { version, latitude, longitude, active, ...fields } = input;
+    const { version, latitude, longitude, active, sourceMapsUrl, ...fields } =
+      input;
+    if (latitude !== undefined && longitude !== undefined) {
+      const validation = await this.location.validatePickup({
+        latitude,
+        longitude,
+      });
+      if (!validation.supported) {
+        throw new BadRequestException(
+          'موقع الفرع خارج نطاقات الاستلام النشطة حالياً.',
+        );
+      }
+    }
     await this.database.$transaction(async (transaction) => {
       const result = await transaction.store.updateMany({
         where: { id: storeId, merchantId: membership.merchantId, version },
@@ -222,6 +285,7 @@ export class MerchantService {
         action: 'store.updated',
         entityType: 'Store',
         entityId: storeId,
+        metadata: { sourceMapsUrl: sourceMapsUrl ?? null },
       });
       return result;
     });
@@ -399,13 +463,35 @@ export class MerchantService {
       Array<Record<string, unknown>>
     >`
       SELECT
-        "id", "merchantId", "name", "phone", "addressLine", "area", "city",
-        "workingHours", "status", "version", "createdAt", "updatedAt",
-        ST_Y("location"::geometry) AS "latitude",
-        ST_X("location"::geometry) AS "longitude"
-      FROM "Store"
-      WHERE "id" = ${storeId}::uuid
-        AND "merchantId" = ${merchantId}::uuid
+        s."id", s."merchantId", s."name", s."phone", s."addressLine",
+        s."governorate", s."area", s."city", s."street", s."addressDetails",
+        s."workingHours", s."status", s."version", s."createdAt", s."updatedAt",
+        ST_Y(s."location"::geometry) AS "latitude",
+        ST_X(s."location"::geometry) AS "longitude",
+        CASE
+          WHEN s."location" IS NULL THEN 'NO_LOCATION'
+          WHEN EXISTS (
+            SELECT 1
+            FROM "ServiceZone" z
+            WHERE z."status" = 'ACTIVE'
+              AND z."allowedPickup" = true
+              AND ST_DWithin(
+                ST_SetSRID(
+                  ST_MakePoint(
+                    z."centerLongitude"::double precision,
+                    z."centerLatitude"::double precision
+                  ),
+                  4326
+                )::geography,
+                s."location",
+                z."radiusKm"::double precision * 1000
+              )
+          ) THEN 'INSIDE_ACTIVE_ZONE'
+          ELSE 'OUTSIDE_ACTIVE_ZONES'
+        END AS "coverageStatus"
+      FROM "Store" s
+      WHERE s."id" = ${storeId}::uuid
+        AND s."merchantId" = ${merchantId}::uuid
       LIMIT 1
     `;
     if (!store) throw new NotFoundException('Store was not found.');

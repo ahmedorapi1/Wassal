@@ -32,6 +32,7 @@ enum UserLocale {
 
 enum MerchantStatus {
   PENDING
+  CHANGES_REQUESTED
   ACTIVE
   SUSPENDED
   BLOCKED
@@ -93,6 +94,8 @@ enum OrderStatus {
   DRAFT
   QUOTED
   SEARCHING_COURIER
+  NO_COURIER_AVAILABLE
+  NO_COURIER_AVAILABLE_FINAL
   COURIER_ASSIGNED
   COURIER_ARRIVING_PICKUP
   AT_PICKUP
@@ -100,9 +103,12 @@ enum OrderStatus {
   IN_TRANSIT
   AT_DROPOFF
   DELIVERED
+  DELIVERY_DISPUTED
   DELIVERY_FAILED
   RETURNING_TO_STORE
+  RETURN_AWAITING_MERCHANT_CONFIRMATION
   RETURNED
+  COMPLETED
   CANCELLED
 }
 
@@ -116,6 +122,95 @@ enum PackageSize {
   MEDIUM
   LARGE
   EXTRA_LARGE
+}
+
+enum CustomerStatus {
+  ACTIVE
+  ARCHIVED
+}
+
+enum AddressSource {
+  MANUAL
+  SAVED
+  STORE
+}
+
+enum AddressValidationStatus {
+  UNVERIFIED
+  VALIDATED
+  REJECTED
+}
+
+enum ServiceZoneStatus {
+  ACTIVE
+  INACTIVE
+}
+
+enum PricingRuleStatus {
+  DRAFT
+  ACTIVE
+  INACTIVE
+  RETIRED
+}
+
+enum CommissionType {
+  PERCENTAGE
+  FIXED
+}
+
+enum QuoteStatus {
+  ACTIVE
+  SUPERSEDED
+  EXPIRED
+  CONSUMED
+  CANCELLED
+}
+
+enum OrderEventType {
+  ORDER_DRAFT_CREATED
+  QUOTE_CREATED
+  QUOTE_RECALCULATED
+  QUOTE_EXPIRED
+  ORDER_CONFIRMED
+  COURIER_SEARCH_REQUESTED
+  COURIER_SEARCH_EXPIRED
+  COURIER_SEARCH_RESTARTED
+  COURIER_ACCEPTED
+  COURIER_ARRIVING_PICKUP
+  COURIER_ARRIVED_PICKUP
+  ORDER_PICKED_UP
+  ORDER_IN_TRANSIT
+  COURIER_ARRIVED_DROPOFF
+  ORDER_DELIVERED
+  DELIVERY_DISPUTE_CREATED
+  DELIVERY_DISPUTE_COURIER_RESPONDED
+  DELIVERY_DISPUTE_RESOLVED
+  ORDER_COMPLETED
+  DELIVERY_FAILED
+  RETURNING_TO_STORE
+  RETURN_AWAITING_MERCHANT_CONFIRMATION
+  RETURN_CONFIRMED
+  RETURN_ADMIN_OVERRIDE
+  ORDER_RETURNED
+  COURIER_CANCELLED
+  ADMIN_CANCELLED
+  ORDER_CANCELLED
+  MERCHANT_CANCELLED_AFTER_PICKUP
+  ORDER_NOTE_UPDATED
+}
+
+enum OrderEventSource {
+  MERCHANT_WEB
+  ADMIN_WEB
+  COURIER_MOBILE
+  WORKER
+  SYSTEM
+  API
+}
+
+enum OrderActorType {
+  USER
+  SYSTEM
 }
 
 enum DispatchOfferStatus {
@@ -162,6 +257,38 @@ enum SettlementStatus {
   CANCELLED
 }
 
+enum SettlementCycleType {
+  WEEKLY
+}
+
+enum CourierLedgerEntryType {
+  COMMISSION_DUE
+  EXTERNAL_PAYMENT
+  ADJUSTMENT_DEBIT
+  ADJUSTMENT_CREDIT
+  WAIVER
+  REVERSAL
+}
+
+enum CourierSettlementStatus {
+  OPEN
+  CLOSED
+  NOT_DUE
+  DUE_SOON
+  PARTIALLY_PAID
+  PAID
+  OVERDUE
+  WAIVED
+  ADJUSTED
+}
+
+enum ExternalPaymentMethod {
+  CASH
+  BANK_TRANSFER
+  MOBILE_WALLET_EXTERNAL
+  OTHER
+}
+
 enum SupportCaseType {
   DELIVERY_ISSUE
   PAYMENT_ISSUE
@@ -197,47 +324,128 @@ enum IdempotencyStatus {
   FAILED
 }
 
+enum DeliveryDisputeReason {
+  COURIER_DID_NOT_ARRIVE
+  CUSTOMER_DID_NOT_RECEIVE
+  WRONG_RECIPIENT
+  INCOMPLETE_DELIVERY
+  DAMAGED_DELIVERY
+  MARKED_DELIVERED_BY_MISTAKE
+  OTHER
+}
+
+enum DeliveryDisputeStatus {
+  OPEN
+  COURIER_RESPONDED
+  RESOLVED_DELIVERY_CONFIRMED
+  RESOLVED_NOT_DELIVERED
+  RESOLVED_RETURN_REQUIRED
+  CANCELLED_BY_ADMIN
+}
+
+enum DeliveryFailureReason {
+  CUSTOMER_NO_ANSWER
+  PHONE_OFF
+  WRONG_ADDRESS
+  CUSTOMER_ABSENT
+  CUSTOMER_REFUSED
+  CUSTOMER_CANCELLED
+  INCORRECT_INFORMATION
+  INACCESSIBLE_LOCATION
+  PRODUCT_ISSUE
+  COURIER_EMERGENCY
+  OTHER
+}
+
+enum ReturnCondition {
+  INTACT
+  DAMAGED
+  INCOMPLETE
+  OTHER
+}
+
+enum OrderCompletionSource {
+  DISPUTE_WINDOW_EXPIRED
+  ADMIN_CONFIRMED_DELIVERY
+  MERCHANT_CONFIRMED_RETURN
+  ADMIN_RETURN_OVERRIDE
+}
+
+enum PaymentProofStatus {
+  PENDING_CONFIRMATION
+  APPROVED
+  PARTIALLY_APPROVED
+  REJECTED
+  CANCELLED_BY_COURIER
+  SUPERSEDED
+}
+
 model User {
-  id                  String                     @id @default(uuid()) @db.Uuid
-  phone               String                     @unique @db.VarChar(20)
-  email               String?                    @unique @db.VarChar(320)
-  displayName         String?                    @db.VarChar(160)
-  role                UserRole
-  status              UserStatus                 @default(PENDING)
-  locale              UserLocale                 @default(AR_EG)
-  phoneVerifiedAt     DateTime?                  @db.Timestamptz(3)
-  lastSignedInAt      DateTime?                  @db.Timestamptz(3)
-  createdAt           DateTime                   @default(now()) @db.Timestamptz(3)
-  updatedAt           DateTime                   @updatedAt @db.Timestamptz(3)
-  merchantMemberships MerchantMembership[]
-  courierProfile      CourierProfile?
-  orderEvents         OrderEvent[]
-  ratingsGiven        Rating[]                   @relation("RatingAuthor")
-  ratingsReceived     Rating[]                   @relation("RatingSubject")
-  auditLogs           AuditLog[]
-  otpChallenges       OtpChallenge[]
-  sessions            Session[]
-  reviewedDocuments   CourierDocument[]          @relation("DocumentReviewer")
-  verificationEvents  CourierVerificationEvent[] @relation("VerificationActor")
+  id                    String                       @id @default(uuid()) @db.Uuid
+  phone                 String                       @unique @db.VarChar(20)
+  email                 String?                      @unique @db.VarChar(320)
+  displayName           String?                      @db.VarChar(160)
+  role                  UserRole
+  status                UserStatus                   @default(PENDING)
+  locale                UserLocale                   @default(AR_EG)
+  phoneVerifiedAt       DateTime?                    @db.Timestamptz(3)
+  passwordHash          String?                      @db.VarChar(255)
+  passwordChangedAt     DateTime?                    @db.Timestamptz(3)
+  forcePasswordChange   Boolean                      @default(false)
+  failedLoginAttempts   Int                          @default(0)
+  lockedUntil           DateTime?                    @db.Timestamptz(3)
+  lastSignedInAt        DateTime?                    @db.Timestamptz(3)
+  createdAt             DateTime                     @default(now()) @db.Timestamptz(3)
+  updatedAt             DateTime                     @updatedAt @db.Timestamptz(3)
+  merchantMemberships   MerchantMembership[]
+  courierProfile        CourierProfile?
+  orderEvents           OrderEvent[]
+  ratingsGiven          Rating[]                     @relation("RatingAuthor")
+  ratingsReceived       Rating[]                     @relation("RatingSubject")
+  auditLogs             AuditLog[]
+  otpChallenges         OtpChallenge[]
+  sessions              Session[]
+  reviewedDocuments     CourierDocument[]            @relation("DocumentReviewer")
+  verificationEvents    CourierVerificationEvent[]   @relation("VerificationActor")
+  createdQuotes         PriceQuote[]                 @relation("QuoteCreator")
+  createdOrders         DeliveryOrder[]              @relation("OrderCreator")
+  cancelledOrders       DeliveryOrder[]              @relation("OrderCanceller")
+  financialSettings     PlatformFinancialSetting[]   @relation("FinancialSettingCreator")
+  courierZoneGrants     CourierServiceZone[]         @relation("CourierZoneCreator")
+  courierLedgerEntries  CourierLedgerEntry[]         @relation("CourierLedgerCreator")
+  externalPayments      ExternalPaymentRecord[]      @relation("ExternalPaymentCreator")
+  notifications         Notification[]
+  createdDisputes       DeliveryDispute[]            @relation("DisputeCreator")
+  resolvedDisputes      DeliveryDispute[]            @relation("DisputeResolver")
+  reviewedPaymentProofs CourierPaymentProof[]        @relation("PaymentProofReviewer")
+  paymentProofReviews   PaymentProofReview[]         @relation("PaymentProofReviewActor")
+  operationalSettings   PlatformOperationalSetting[] @relation("OperationalSettingCreator")
 
   @@index([role, status])
 }
 
 model Merchant {
-  id             String               @id @default(uuid()) @db.Uuid
-  legalName      String               @db.VarChar(200)
-  displayName    String               @db.VarChar(160)
-  status         MerchantStatus       @default(PENDING)
-  billingMode    BillingMode          @default(PER_ORDER)
-  commissionRate Decimal              @default(0) @db.Decimal(5, 4)
-  version        Int                  @default(1)
-  createdAt      DateTime             @default(now()) @db.Timestamptz(3)
-  updatedAt      DateTime             @updatedAt @db.Timestamptz(3)
-  memberships    MerchantMembership[]
-  stores         Store[]
-  customers      Customer[]
-  addresses      Address[]
-  orders         DeliveryOrder[]
+  id               String               @id @default(uuid()) @db.Uuid
+  legalName        String               @db.VarChar(200)
+  displayName      String               @db.VarChar(160)
+  businessCategory String?              @db.VarChar(120)
+  contactPhone     String?              @db.VarChar(20)
+  contactEmail     String?              @db.VarChar(320)
+  status           MerchantStatus       @default(PENDING)
+  reviewNotes      String?
+  reviewedAt       DateTime?            @db.Timestamptz(3)
+  billingMode      BillingMode          @default(PER_ORDER)
+  commissionRate   Decimal              @default(0) @db.Decimal(5, 4)
+  version          Int                  @default(1)
+  createdAt        DateTime             @default(now()) @db.Timestamptz(3)
+  updatedAt        DateTime             @updatedAt @db.Timestamptz(3)
+  memberships      MerchantMembership[]
+  stores           Store[]
+  customers        Customer[]
+  addresses        Address[]
+  orders           DeliveryOrder[]
+  quotes           PriceQuote[]
+  deliveryDisputes DeliveryDispute[]
 
   @@index([status])
 }
@@ -262,21 +470,25 @@ model MerchantMembership {
 }
 
 model Store {
-  id           String                                 @id @default(uuid()) @db.Uuid
-  merchantId   String                                 @db.Uuid
-  name         String                                 @db.VarChar(160)
-  phone        String?                                @db.VarChar(20)
-  addressLine  String                                 @db.VarChar(500)
-  area         String                                 @db.VarChar(120)
-  city         String                                 @db.VarChar(120)
-  location     Unsupported("geography(Point, 4326)")?
-  workingHours Json?
-  status       StoreStatus                            @default(ACTIVE)
-  version      Int                                    @default(1)
-  createdAt    DateTime                               @default(now()) @db.Timestamptz(3)
-  updatedAt    DateTime                               @updatedAt @db.Timestamptz(3)
-  merchant     Merchant                               @relation(fields: [merchantId], references: [id], onDelete: Restrict)
-  pickupOrders DeliveryOrder[]
+  id             String                                 @id @default(uuid()) @db.Uuid
+  merchantId     String                                 @db.Uuid
+  name           String                                 @db.VarChar(160)
+  phone          String?                                @db.VarChar(20)
+  addressLine    String                                 @db.VarChar(500)
+  governorate    String?                                @db.VarChar(120)
+  city           String                                 @db.VarChar(120)
+  area           String                                 @db.VarChar(120)
+  street         String?                                @db.VarChar(240)
+  addressDetails String?                                @db.VarChar(500)
+  location       Unsupported("geography(Point, 4326)")?
+  workingHours   Json?
+  status         StoreStatus                            @default(ACTIVE)
+  version        Int                                    @default(1)
+  createdAt      DateTime                               @default(now()) @db.Timestamptz(3)
+  updatedAt      DateTime                               @updatedAt @db.Timestamptz(3)
+  merchant       Merchant                               @relation(fields: [merchantId], references: [id], onDelete: Restrict)
+  pickupOrders   DeliveryOrder[]
+  quotes         PriceQuote[]
 
   @@index([merchantId, status])
   @@index([city, area])
@@ -311,6 +523,12 @@ model CourierProfile {
   dispatchOffers        DispatchOffer[]
   trackingPoints        TrackingPoint[]
   verificationEvents    CourierVerificationEvent[]
+  serviceZones          CourierServiceZone[]
+  courierLedgerEntries  CourierLedgerEntry[]
+  settlementPeriods     SettlementPeriod[]
+  externalPayments      ExternalPaymentRecord[]
+  deliveryDisputes      DeliveryDispute[]
+  paymentProofs         CourierPaymentProof[]
 
   @@index([verificationStatus, availability])
 }
@@ -385,106 +603,194 @@ model CourierVerificationEvent {
 }
 
 model Customer {
-  id         String          @id @default(uuid()) @db.Uuid
-  merchantId String          @db.Uuid
-  name       String          @db.VarChar(160)
-  phone      String          @db.VarChar(20)
-  createdAt  DateTime        @default(now()) @db.Timestamptz(3)
-  updatedAt  DateTime        @updatedAt @db.Timestamptz(3)
-  merchant   Merchant        @relation(fields: [merchantId], references: [id], onDelete: Restrict)
-  addresses  Address[]
-  orders     DeliveryOrder[]
+  id              String          @id @default(uuid()) @db.Uuid
+  merchantId      String          @db.Uuid
+  name            String          @db.VarChar(160)
+  normalizedPhone String          @db.VarChar(20)
+  email           String?         @db.VarChar(320)
+  notes           String?
+  status          CustomerStatus  @default(ACTIVE)
+  archivedAt      DateTime?       @db.Timestamptz(3)
+  version         Int             @default(1)
+  createdAt       DateTime        @default(now()) @db.Timestamptz(3)
+  updatedAt       DateTime        @updatedAt @db.Timestamptz(3)
+  merchant        Merchant        @relation(fields: [merchantId], references: [id], onDelete: Restrict)
+  addresses       Address[]
+  orders          DeliveryOrder[]
+  quotes          PriceQuote[]
 
-  @@unique([merchantId, phone])
+  @@unique([merchantId, normalizedPhone])
+  @@index([merchantId, status, createdAt])
+  @@index([merchantId, name])
 }
 
 model Address {
-  id            String                                 @id @default(uuid()) @db.Uuid
-  merchantId    String                                 @db.Uuid
-  customerId    String?                                @db.Uuid
-  label         String?                                @db.VarChar(100)
-  addressLine   String                                 @db.VarChar(500)
-  area          String                                 @db.VarChar(120)
-  city          String                                 @db.VarChar(120)
-  instructions  String?
-  location      Unsupported("geography(Point, 4326)")?
-  createdAt     DateTime                               @default(now()) @db.Timestamptz(3)
-  updatedAt     DateTime                               @updatedAt @db.Timestamptz(3)
-  merchant      Merchant                               @relation(fields: [merchantId], references: [id], onDelete: Restrict)
-  customer      Customer?                              @relation(fields: [customerId], references: [id], onDelete: SetNull)
-  pickupOrders  DeliveryOrder[]                        @relation("PickupAddress")
-  dropoffOrders DeliveryOrder[]                        @relation("DropoffAddress")
+  id               String                                 @id @default(uuid()) @db.Uuid
+  merchantId       String                                 @db.Uuid
+  customerId       String?                                @db.Uuid
+  label            String?                                @db.VarChar(100)
+  contactName      String                                 @db.VarChar(160)
+  contactPhone     String                                 @db.VarChar(20)
+  addressLine      String                                 @db.VarChar(500)
+  street           String?                                @db.VarChar(240)
+  buildingNumber   String?                                @db.VarChar(40)
+  floor            String?                                @db.VarChar(40)
+  apartment        String?                                @db.VarChar(40)
+  landmark         String?                                @db.VarChar(240)
+  area             String                                 @db.VarChar(120)
+  city             String                                 @db.VarChar(120)
+  governorate      String                                 @db.VarChar(120)
+  instructions     String?
+  deliveryNotes    String?
+  sourceMapsUrl    String?                                @db.VarChar(1000)
+  latitude         Decimal                                @db.Decimal(9, 6)
+  longitude        Decimal                                @db.Decimal(9, 6)
+  location         Unsupported("geography(Point, 4326)")?
+  source           AddressSource                          @default(MANUAL)
+  validationStatus AddressValidationStatus                @default(UNVERIFIED)
+  archivedAt       DateTime?                              @db.Timestamptz(3)
+  version          Int                                    @default(1)
+  createdAt        DateTime                               @default(now()) @db.Timestamptz(3)
+  updatedAt        DateTime                               @updatedAt @db.Timestamptz(3)
+  merchant         Merchant                               @relation(fields: [merchantId], references: [id], onDelete: Restrict)
+  customer         Customer?                              @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  pickupOrders     DeliveryOrder[]                        @relation("PickupAddress")
+  dropoffOrders    DeliveryOrder[]                        @relation("DropoffAddress")
 
-  @@index([merchantId, customerId])
+  @@index([merchantId, customerId, archivedAt])
   @@index([city, area])
 }
 
 model DeliveryOrder {
-  id                 String            @id @default(uuid()) @db.Uuid
-  reference          String            @unique @db.VarChar(32)
-  merchantId         String            @db.Uuid
-  storeId            String            @db.Uuid
-  customerId         String?           @db.Uuid
-  pickupAddressId    String            @db.Uuid
-  dropoffAddressId   String            @db.Uuid
-  courierId          String?           @db.Uuid
-  status             OrderStatus       @default(DRAFT)
-  paymentMode        PaymentMode       @default(DELIVERY_ONLY)
-  packageCategory    String            @db.VarChar(100)
-  packageSize        PackageSize       @default(SMALL)
-  weightKg           Decimal?          @db.Decimal(8, 3)
-  fragile            Boolean           @default(false)
-  notes              String?
-  goodsAmount        Decimal?          @db.Decimal(12, 2)
-  deliveryFee        Decimal?          @db.Decimal(12, 2)
-  platformCommission Decimal?          @db.Decimal(12, 2)
-  courierEarning     Decimal?          @db.Decimal(12, 2)
-  currency           String            @default("EGP") @db.Char(3)
-  pricingVersion     Int?
-  scheduledFor       DateTime?         @db.Timestamptz(3)
-  acceptedAt         DateTime?         @db.Timestamptz(3)
-  pickedUpAt         DateTime?         @db.Timestamptz(3)
-  deliveredAt        DateTime?         @db.Timestamptz(3)
-  cancelledAt        DateTime?         @db.Timestamptz(3)
-  cancellationReason String?
-  version            Int               @default(1)
-  createdAt          DateTime          @default(now()) @db.Timestamptz(3)
-  updatedAt          DateTime          @updatedAt @db.Timestamptz(3)
-  merchant           Merchant          @relation(fields: [merchantId], references: [id], onDelete: Restrict)
-  store              Store             @relation(fields: [storeId], references: [id], onDelete: Restrict)
-  customer           Customer?         @relation(fields: [customerId], references: [id], onDelete: SetNull)
-  pickupAddress      Address           @relation("PickupAddress", fields: [pickupAddressId], references: [id], onDelete: Restrict)
-  dropoffAddress     Address           @relation("DropoffAddress", fields: [dropoffAddressId], references: [id], onDelete: Restrict)
-  courier            CourierProfile?   @relation(fields: [courierId], references: [id], onDelete: Restrict)
-  events             OrderEvent[]
-  dispatchOffers     DispatchOffer[]
-  trackingPoints     TrackingPoint[]
-  proofs             ProofOfDelivery[]
-  quotes             PriceQuote[]
-  ledgerEntries      LedgerEntry[]
-  ratings            Rating[]
-  supportCases       SupportCase[]
+  id                            String                 @id @default(uuid()) @db.Uuid
+  orderNumber                   String                 @unique @db.VarChar(32)
+  quoteId                       String                 @unique @db.Uuid
+  merchantId                    String                 @db.Uuid
+  storeId                       String                 @db.Uuid
+  customerId                    String?                @db.Uuid
+  pickupAddressId               String                 @db.Uuid
+  dropoffAddressId              String                 @db.Uuid
+  serviceZoneId                 String                 @db.Uuid
+  pricingRuleId                 String                 @db.Uuid
+  createdById                   String                 @db.Uuid
+  courierId                     String?                @db.Uuid
+  status                        OrderStatus            @default(DRAFT)
+  acceptanceExpiresAt           DateTime?              @db.Timestamptz(3)
+  dispatchAttemptCount          Int                    @default(0)
+  paymentMode                   PaymentMode            @default(DELIVERY_ONLY)
+  customerSnapshot              Json
+  pickupAddressSnapshot         Json
+  dropoffAddressSnapshot        Json
+  packageSnapshot               Json
+  routeSnapshot                 Json
+  pricingSnapshot               Json
+  packageCategory               String                 @db.VarChar(100)
+  itemDescription               String                 @db.VarChar(240)
+  packageSize                   PackageSize            @default(SMALL)
+  weightGrams                   Int
+  packageCount                  Int                    @default(1)
+  fragile                       Boolean                @default(false)
+  requiresThermalBag            Boolean                @default(false)
+  recipientNotes                String?
+  courierNotes                  String?
+  declaredValueMinor            Int
+  prohibitedItemsConfirmed      Boolean                @default(false)
+  merchantReference             String?                @db.VarChar(100)
+  customerOrderReference        String?                @db.VarChar(100)
+  routeDistanceMeters           Int
+  estimatedDurationSeconds      Int
+  baseFeeMinor                  Int
+  distanceChargeMinor           Int
+  packageSurchargeMinor         Int
+  weightSurchargeMinor          Int
+  fragileSurchargeMinor         Int
+  thermalBagSurchargeMinor      Int
+  discountMinor                 Int                    @default(0)
+  surgeAdjustmentMinor          Int                    @default(0)
+  taxMinor                      Int                    @default(0)
+  merchantTotalMinor            Int
+  estimatedCourierEarningMinor  Int
+  platformCommissionMinor       Int
+  platformCommissionBasisPoints Int
+  currency                      String                 @default("EGP") @db.Char(3)
+  pricingVersion                Int
+  deliveredAt                   DateTime?              @db.Timestamptz(3)
+  deliveryDisputeDeadlineAt     DateTime?              @db.Timestamptz(3)
+  completedAt                   DateTime?              @db.Timestamptz(3)
+  completionSource              OrderCompletionSource?
+  deliveryNote                  String?
+  deliveryFailureReason         DeliveryFailureReason?
+  deliveryFailureNote           String?
+  returnReportedAt              DateTime?              @db.Timestamptz(3)
+  returnConfirmedAt             DateTime?              @db.Timestamptz(3)
+  returnConfirmedById           String?                @db.Uuid
+  returnCondition               ReturnCondition?
+  returnConfirmationNote        String?
+  financialFinalizedAt          DateTime?              @db.Timestamptz(3)
+  cancelledAt                   DateTime?              @db.Timestamptz(3)
+  cancelledById                 String?                @db.Uuid
+  cancellationReasonCode        String?                @db.VarChar(80)
+  cancellationDetails           String?
+  cancelledByRole               UserRole?
+  cancelledAfterPickup          Boolean                @default(false)
+  cancellationChargeMinor       Int                    @default(0)
+  version                       Int                    @default(1)
+  createdAt                     DateTime               @default(now()) @db.Timestamptz(3)
+  updatedAt                     DateTime               @updatedAt @db.Timestamptz(3)
+  quote                         PriceQuote             @relation(fields: [quoteId], references: [id], onDelete: Restrict)
+  merchant                      Merchant               @relation(fields: [merchantId], references: [id], onDelete: Restrict)
+  store                         Store                  @relation(fields: [storeId], references: [id], onDelete: Restrict)
+  customer                      Customer?              @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  pickupAddress                 Address                @relation("PickupAddress", fields: [pickupAddressId], references: [id], onDelete: Restrict)
+  dropoffAddress                Address                @relation("DropoffAddress", fields: [dropoffAddressId], references: [id], onDelete: Restrict)
+  serviceZone                   ServiceZone            @relation(fields: [serviceZoneId], references: [id], onDelete: Restrict)
+  pricingRule                   PricingRule            @relation(fields: [pricingRuleId], references: [id], onDelete: Restrict)
+  createdBy                     User                   @relation("OrderCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  cancelledBy                   User?                  @relation("OrderCanceller", fields: [cancelledById], references: [id], onDelete: SetNull)
+  courier                       CourierProfile?        @relation(fields: [courierId], references: [id], onDelete: Restrict)
+  events                        OrderEvent[]
+  dispatchOffers                DispatchOffer[]
+  trackingPoints                TrackingPoint[]
+  proofs                        ProofOfDelivery[]
+  ledgerEntries                 LedgerEntry[]
+  courierLedgerEntries          CourierLedgerEntry[]
+  ratings                       Rating[]
+  supportCases                  SupportCase[]
+  deliveryDispute               DeliveryDispute?
 
   @@index([merchantId, createdAt])
+  @@index([merchantId, status, createdAt])
   @@index([courierId, status])
   @@index([status, createdAt])
+  @@index([status, acceptanceExpiresAt])
+  @@index([status, deliveryDisputeDeadlineAt])
+  @@index([serviceZoneId, status, createdAt])
+  @@index([cancelledAt, cancellationReasonCode])
+  @@index([cancelledById, cancelledAt])
 }
 
 model OrderEvent {
-  id         String                                 @id @default(uuid()) @db.Uuid
-  orderId    String                                 @db.Uuid
-  fromStatus OrderStatus?
-  toStatus   OrderStatus
-  actorId    String?                                @db.Uuid
-  actorRole  UserRole?
-  location   Unsupported("geography(Point, 4326)")?
-  notes      String?
-  metadata   Json?
-  createdAt  DateTime                               @default(now()) @db.Timestamptz(3)
-  order      DeliveryOrder                          @relation(fields: [orderId], references: [id], onDelete: Restrict)
-  actor      User?                                  @relation(fields: [actorId], references: [id], onDelete: SetNull)
+  id              String                                 @id @default(uuid()) @db.Uuid
+  orderId         String                                 @db.Uuid
+  eventType       OrderEventType
+  fromStatus      OrderStatus?
+  toStatus        OrderStatus
+  actorType       OrderActorType                         @default(USER)
+  actorId         String?                                @db.Uuid
+  actorRole       UserRole?
+  source          OrderEventSource
+  reasonCode      String?                                @db.VarChar(80)
+  merchantMessage String?
+  internalMessage String?
+  correlationId   String?                                @db.VarChar(100)
+  location        Unsupported("geography(Point, 4326)")?
+  metadata        Json?
+  createdAt       DateTime                               @default(now()) @db.Timestamptz(3)
+  order           DeliveryOrder                          @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  actor           User?                                  @relation(fields: [actorId], references: [id], onDelete: SetNull)
 
   @@index([orderId, createdAt])
+  @@index([eventType, createdAt])
 }
 
 model DispatchOffer {
@@ -538,48 +844,384 @@ model ProofOfDelivery {
   @@index([orderId, createdAt])
 }
 
-model PricingRule {
-  id                  String       @id @default(uuid()) @db.Uuid
-  city                String       @db.VarChar(120)
-  area                String       @default("*") @db.VarChar(120)
-  version             Int
-  currency            String       @default("EGP") @db.Char(3)
-  baseFee             Decimal      @db.Decimal(12, 2)
-  perKmFee            Decimal      @db.Decimal(12, 2)
-  minimumFee          Decimal      @db.Decimal(12, 2)
-  waitingFeePerMinute Decimal      @default(0) @db.Decimal(12, 2)
-  smallPackageFee     Decimal      @default(0) @db.Decimal(12, 2)
-  mediumPackageFee    Decimal      @default(0) @db.Decimal(12, 2)
-  largePackageFee     Decimal      @default(0) @db.Decimal(12, 2)
-  commissionRate      Decimal      @db.Decimal(5, 4)
-  effectiveFrom       DateTime     @db.Timestamptz(3)
-  effectiveTo         DateTime?    @db.Timestamptz(3)
-  active              Boolean      @default(true)
-  createdAt           DateTime     @default(now()) @db.Timestamptz(3)
-  updatedAt           DateTime     @updatedAt @db.Timestamptz(3)
-  quotes              PriceQuote[]
+model ServiceZone {
+  id                         String                                       @id @default(uuid()) @db.Uuid
+  name                       String                                       @db.VarChar(160)
+  countryCode                String                                       @default("EG") @db.Char(2)
+  governorate                String                                       @db.VarChar(120)
+  city                       String                                       @db.VarChar(120)
+  centerLatitude             Decimal                                      @db.Decimal(9, 6)
+  centerLongitude            Decimal                                      @db.Decimal(9, 6)
+  radiusKm                   Decimal                                      @db.Decimal(8, 3)
+  boundary                   Unsupported("geography(MultiPolygon, 4326)")
+  status                     ServiceZoneStatus                            @default(INACTIVE)
+  allowedPickup              Boolean                                      @default(true)
+  allowedDropoff             Boolean                                      @default(true)
+  maximumRouteDistanceMeters Int
+  priority                   Int                                          @default(0)
+  version                    Int                                          @default(1)
+  createdAt                  DateTime                                     @default(now()) @db.Timestamptz(3)
+  updatedAt                  DateTime                                     @updatedAt @db.Timestamptz(3)
+  pricingRules               PricingRule[]
+  quotes                     PriceQuote[]
+  orders                     DeliveryOrder[]
+  courierMemberships         CourierServiceZone[]
 
-  @@unique([city, area, version])
-  @@index([city, area, active, effectiveFrom])
+  @@index([city, status, priority])
+  @@index([governorate, status])
+}
+
+model PricingRule {
+  id                              String            @id @default(uuid()) @db.Uuid
+  ruleFamilyKey                   String            @db.VarChar(100)
+  countryCode                     String            @default("EG") @db.Char(2)
+  governorate                     String            @db.VarChar(120)
+  city                            String            @db.VarChar(120)
+  serviceZoneId                   String?           @db.Uuid
+  vehicleType                     VehicleType       @default(MOTORCYCLE)
+  version                         Int
+  currency                        String            @default("EGP") @db.Char(3)
+  baseFeeMinor                    Int
+  includedDistanceMeters          Int               @default(0)
+  perKilometerMinor               Int
+  minimumFeeMinor                 Int
+  maximumDistanceMeters           Int
+  smallPackageSurchargeMinor      Int               @default(0)
+  mediumPackageSurchargeMinor     Int               @default(0)
+  largePackageSurchargeMinor      Int               @default(0)
+  weightBands                     Json
+  fragileSurchargeMinor           Int               @default(0)
+  thermalBagSurchargeMinor        Int               @default(0)
+  waitingFeePerMinuteMinor        Int               @default(0)
+  returnTripBaseMinor             Int               @default(0)
+  returnTripPercentageBasisPoints Int               @default(7000)
+  commissionType                  CommissionType    @default(PERCENTAGE)
+  commissionValue                 Int
+  taxBasisPoints                  Int               @default(0)
+  effectiveFrom                   DateTime          @db.Timestamptz(3)
+  effectiveTo                     DateTime?         @db.Timestamptz(3)
+  status                          PricingRuleStatus @default(DRAFT)
+  priority                        Int               @default(0)
+  createdAt                       DateTime          @default(now()) @db.Timestamptz(3)
+  updatedAt                       DateTime          @updatedAt @db.Timestamptz(3)
+  serviceZone                     ServiceZone?      @relation(fields: [serviceZoneId], references: [id], onDelete: Restrict)
+  quotes                          PriceQuote[]
+  orders                          DeliveryOrder[]
+
+  @@unique([ruleFamilyKey, version])
+  @@index([countryCode, governorate, city, status, priority, effectiveFrom])
+  @@index([serviceZoneId, vehicleType, status, priority, effectiveFrom])
 }
 
 model PriceQuote {
-  id              String         @id @default(uuid()) @db.Uuid
-  orderId         String?        @db.Uuid
-  pricingRuleId   String         @db.Uuid
-  distanceMeters  Int
-  durationSeconds Int?
-  amount          Decimal        @db.Decimal(12, 2)
-  commission      Decimal        @db.Decimal(12, 2)
-  currency        String         @default("EGP") @db.Char(3)
-  breakdown       Json
-  expiresAt       DateTime       @db.Timestamptz(3)
-  createdAt       DateTime       @default(now()) @db.Timestamptz(3)
-  order           DeliveryOrder? @relation(fields: [orderId], references: [id], onDelete: SetNull)
-  pricingRule     PricingRule    @relation(fields: [pricingRuleId], references: [id], onDelete: Restrict)
+  id                            String         @id @default(uuid()) @db.Uuid
+  merchantId                    String         @db.Uuid
+  storeId                       String         @db.Uuid
+  customerId                    String?        @db.Uuid
+  serviceZoneId                 String         @db.Uuid
+  pricingRuleId                 String         @db.Uuid
+  createdById                   String         @db.Uuid
+  pricingRuleVersion            Int
+  status                        QuoteStatus    @default(ACTIVE)
+  customerSnapshot              Json
+  pickupAddressSnapshot         Json
+  dropoffAddressSnapshot        Json
+  packageSnapshot               Json
+  routeSnapshot                 Json
+  distanceMeters                Int
+  durationSeconds               Int
+  baseFeeMinor                  Int
+  distanceChargeMinor           Int
+  packageSurchargeMinor         Int
+  weightSurchargeMinor          Int
+  fragileSurchargeMinor         Int
+  thermalBagSurchargeMinor      Int
+  discountMinor                 Int            @default(0)
+  surgeAdjustmentMinor          Int            @default(0)
+  taxMinor                      Int            @default(0)
+  merchantTotalMinor            Int
+  estimatedCourierEarningMinor  Int
+  platformCommissionMinor       Int
+  platformCommissionBasisPoints Int
+  currency                      String         @default("EGP") @db.Char(3)
+  breakdown                     Json
+  requestFingerprint            String         @db.Char(64)
+  idempotencyKey                String         @db.VarChar(128)
+  expiresAt                     DateTime       @db.Timestamptz(3)
+  consumedAt                    DateTime?      @db.Timestamptz(3)
+  supersedesId                  String?        @db.Uuid
+  version                       Int            @default(1)
+  createdAt                     DateTime       @default(now()) @db.Timestamptz(3)
+  merchant                      Merchant       @relation(fields: [merchantId], references: [id], onDelete: Restrict)
+  store                         Store          @relation(fields: [storeId], references: [id], onDelete: Restrict)
+  customer                      Customer?      @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  serviceZone                   ServiceZone    @relation(fields: [serviceZoneId], references: [id], onDelete: Restrict)
+  pricingRule                   PricingRule    @relation(fields: [pricingRuleId], references: [id], onDelete: Restrict)
+  createdBy                     User           @relation("QuoteCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  supersedes                    PriceQuote?    @relation("QuoteVersions", fields: [supersedesId], references: [id], onDelete: Restrict)
+  replacements                  PriceQuote[]   @relation("QuoteVersions")
+  order                         DeliveryOrder?
 
-  @@index([orderId])
+  @@unique([merchantId, idempotencyKey])
+  @@index([merchantId, status, createdAt])
+  @@index([expiresAt, status])
+  @@index([serviceZoneId, status])
+}
+
+model PlatformFinancialSetting {
+  id                           String              @id @default(uuid()) @db.Uuid
+  defaultCommissionBasisPoints Int
+  settlementCycle              SettlementCycleType @default(WEEKLY)
+  gracePeriodDays              Int                 @default(7)
+  operationsTimezone           String              @default("Africa/Cairo") @db.VarChar(100)
+  effectiveFrom                DateTime            @db.Timestamptz(3)
+  version                      Int                 @unique
+  createdById                  String?             @db.Uuid
+  createdAt                    DateTime            @default(now()) @db.Timestamptz(3)
+  createdBy                    User?               @relation("FinancialSettingCreator", fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@index([effectiveFrom, version])
+}
+
+model PlatformOperationalSetting {
+  id                             String   @id @default(uuid()) @db.Uuid
+  deliveryDisputeWindowHours     Int      @default(24)
+  returnConfirmationTimeoutHours Int      @default(48)
+  notificationRetentionDays      Int      @default(90)
+  operationsTimezone             String   @default("Africa/Cairo") @db.VarChar(100)
+  effectiveFrom                  DateTime @db.Timestamptz(3)
+  version                        Int      @unique
+  createdById                    String?  @db.Uuid
+  createdAt                      DateTime @default(now()) @db.Timestamptz(3)
+  createdBy                      User?    @relation("OperationalSettingCreator", fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@index([effectiveFrom, version])
+}
+
+model DeliveryDispute {
+  id                  String                @id @default(uuid()) @db.Uuid
+  orderId             String                @unique @db.Uuid
+  merchantId          String                @db.Uuid
+  courierId           String                @db.Uuid
+  status              DeliveryDisputeStatus @default(OPEN)
+  merchantReason      DeliveryDisputeReason
+  merchantNote        String?
+  createdById         String                @db.Uuid
+  courierResponse     String?
+  paperProofAvailable Boolean?
+  courierRespondedAt  DateTime?             @db.Timestamptz(3)
+  resolutionNote      String?
+  resolvedById        String?               @db.Uuid
+  resolvedAt          DateTime?             @db.Timestamptz(3)
+  version             Int                   @default(1)
+  createdAt           DateTime              @default(now()) @db.Timestamptz(3)
+  updatedAt           DateTime              @updatedAt @db.Timestamptz(3)
+  order               DeliveryOrder         @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  merchant            Merchant              @relation(fields: [merchantId], references: [id], onDelete: Restrict)
+  courier             CourierProfile        @relation(fields: [courierId], references: [id], onDelete: Restrict)
+  createdBy           User                  @relation("DisputeCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  resolvedBy          User?                 @relation("DisputeResolver", fields: [resolvedById], references: [id], onDelete: Restrict)
+
+  @@index([status, createdAt])
+  @@index([merchantId, createdAt])
+  @@index([courierId, createdAt])
+}
+
+model Notification {
+  id                String    @id @default(uuid()) @db.Uuid
+  recipientUserId   String    @db.Uuid
+  type              String    @db.VarChar(100)
+  title             String    @db.VarChar(240)
+  body              String
+  relatedEntityType String?   @db.VarChar(100)
+  relatedEntityId   String?   @db.VarChar(160)
+  deepLink          String?   @db.VarChar(500)
+  deduplicationKey  String    @unique @db.VarChar(200)
+  metadata          Json?
+  readAt            DateTime? @db.Timestamptz(3)
+  expiresAt         DateTime? @db.Timestamptz(3)
+  createdAt         DateTime  @default(now()) @db.Timestamptz(3)
+  recipient         User      @relation(fields: [recipientUserId], references: [id], onDelete: Cascade)
+
+  @@index([recipientUserId, createdAt])
+  @@index([recipientUserId, readAt, createdAt])
   @@index([expiresAt])
+}
+
+model CourierPaymentProof {
+  id                      String                 @id @default(uuid()) @db.Uuid
+  courierId               String                 @db.Uuid
+  submittedAmountMinor    Int
+  approvedAmountMinor     Int?
+  currency                String                 @default("EGP") @db.Char(3)
+  method                  ExternalPaymentMethod
+  paidAt                  DateTime               @db.Timestamptz(3)
+  externalReference       String?                @db.VarChar(160)
+  normalizedReference     String?                @db.VarChar(160)
+  note                    String?
+  status                  PaymentProofStatus     @default(PENDING_CONFIRMATION)
+  storageKey              String                 @db.VarChar(500)
+  originalFilename        String                 @db.VarChar(255)
+  contentType             String                 @db.VarChar(120)
+  sizeBytes               Int
+  checksumSha256          String                 @db.Char(64)
+  duplicateIndicators     Json?
+  reviewReason            String?
+  reviewedById            String?                @db.Uuid
+  reviewedAt              DateTime?              @db.Timestamptz(3)
+  linkedExternalPaymentId String?                @unique @db.Uuid
+  idempotencyKey          String                 @unique @db.VarChar(128)
+  supersedesId            String?                @db.Uuid
+  version                 Int                    @default(1)
+  createdAt               DateTime               @default(now()) @db.Timestamptz(3)
+  updatedAt               DateTime               @updatedAt @db.Timestamptz(3)
+  courier                 CourierProfile         @relation(fields: [courierId], references: [id], onDelete: Restrict)
+  reviewedBy              User?                  @relation("PaymentProofReviewer", fields: [reviewedById], references: [id], onDelete: Restrict)
+  linkedExternalPayment   ExternalPaymentRecord? @relation(fields: [linkedExternalPaymentId], references: [id], onDelete: Restrict)
+  supersedes              CourierPaymentProof?   @relation("PaymentProofVersions", fields: [supersedesId], references: [id], onDelete: Restrict)
+  replacements            CourierPaymentProof[]  @relation("PaymentProofVersions")
+  reviews                 PaymentProofReview[]
+
+  @@index([courierId, status, createdAt])
+  @@index([status, createdAt])
+  @@index([normalizedReference])
+  @@index([courierId, submittedAmountMinor, paidAt])
+}
+
+model PaymentProofReview {
+  id                  String              @id @default(uuid()) @db.Uuid
+  paymentProofId      String              @db.Uuid
+  actorId             String              @db.Uuid
+  fromStatus          PaymentProofStatus
+  toStatus            PaymentProofStatus
+  approvedAmountMinor Int?
+  reason              String?
+  metadata            Json?
+  createdAt           DateTime            @default(now()) @db.Timestamptz(3)
+  paymentProof        CourierPaymentProof @relation(fields: [paymentProofId], references: [id], onDelete: Restrict)
+  actor               User                @relation("PaymentProofReviewActor", fields: [actorId], references: [id], onDelete: Restrict)
+
+  @@index([paymentProofId, createdAt])
+  @@index([actorId, createdAt])
+}
+
+model CourierServiceZone {
+  id            String         @id @default(uuid()) @db.Uuid
+  courierId     String         @db.Uuid
+  serviceZoneId String         @db.Uuid
+  active        Boolean        @default(true)
+  version       Int            @default(1)
+  createdById   String?        @db.Uuid
+  createdAt     DateTime       @default(now()) @db.Timestamptz(3)
+  updatedAt     DateTime       @updatedAt @db.Timestamptz(3)
+  courier       CourierProfile @relation(fields: [courierId], references: [id], onDelete: Restrict)
+  serviceZone   ServiceZone    @relation(fields: [serviceZoneId], references: [id], onDelete: Restrict)
+  createdBy     User?          @relation("CourierZoneCreator", fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@unique([courierId, serviceZoneId])
+  @@index([serviceZoneId, active, courierId])
+  @@index([courierId, active])
+}
+
+model CourierLedgerEntry {
+  id              String                 @id @default(uuid()) @db.Uuid
+  courierId       String                 @db.Uuid
+  orderId         String?                @db.Uuid
+  type            CourierLedgerEntryType
+  amountMinor     Int
+  currency        String                 @default("EGP") @db.Char(3)
+  sourceKey       String                 @unique @db.VarChar(160)
+  reversesEntryId String?                @unique @db.Uuid
+  createdById     String?                @db.Uuid
+  reason          String                 @db.VarChar(500)
+  metadata        Json?
+  occurredAt      DateTime               @db.Timestamptz(3)
+  createdAt       DateTime               @default(now()) @db.Timestamptz(3)
+  courier         CourierProfile         @relation(fields: [courierId], references: [id], onDelete: Restrict)
+  order           DeliveryOrder?         @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  createdBy       User?                  @relation("CourierLedgerCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  reversesEntry   CourierLedgerEntry?    @relation("CourierLedgerReversal", fields: [reversesEntryId], references: [id], onDelete: Restrict)
+  reversedBy      CourierLedgerEntry?    @relation("CourierLedgerReversal")
+  settlementLine  SettlementLine?
+
+  @@index([courierId, occurredAt])
+  @@index([orderId, type])
+  @@index([type, occurredAt])
+}
+
+model SettlementPeriod {
+  id                      String                      @id @default(uuid()) @db.Uuid
+  courierId               String                      @db.Uuid
+  periodStart             DateTime                    @db.Timestamptz(3)
+  periodEnd               DateTime                    @db.Timestamptz(3)
+  dueAt                   DateTime                    @db.Timestamptz(3)
+  currency                String                      @default("EGP") @db.Char(3)
+  totalCommissionDueMinor Int                         @default(0)
+  totalPaymentsMinor      Int                         @default(0)
+  totalAdjustmentsMinor   Int                         @default(0)
+  totalWaivedMinor        Int                         @default(0)
+  remainingAmountMinor    Int                         @default(0)
+  status                  CourierSettlementStatus     @default(OPEN)
+  version                 Int                         @default(1)
+  closedAt                DateTime?                   @db.Timestamptz(3)
+  createdAt               DateTime                    @default(now()) @db.Timestamptz(3)
+  updatedAt               DateTime                    @updatedAt @db.Timestamptz(3)
+  courier                 CourierProfile              @relation(fields: [courierId], references: [id], onDelete: Restrict)
+  lines                   SettlementLine[]
+  paymentAllocations      ExternalPaymentAllocation[]
+
+  @@unique([courierId, periodStart, periodEnd])
+  @@index([courierId, status, dueAt])
+  @@index([status, dueAt])
+}
+
+model SettlementLine {
+  id                 String             @id @default(uuid()) @db.Uuid
+  settlementPeriodId String             @db.Uuid
+  ledgerEntryId      String             @unique @db.Uuid
+  amountMinor        Int
+  createdAt          DateTime           @default(now()) @db.Timestamptz(3)
+  settlementPeriod   SettlementPeriod   @relation(fields: [settlementPeriodId], references: [id], onDelete: Restrict)
+  ledgerEntry        CourierLedgerEntry @relation(fields: [ledgerEntryId], references: [id], onDelete: Restrict)
+
+  @@index([settlementPeriodId, createdAt])
+}
+
+model ExternalPaymentRecord {
+  id                String                      @id @default(uuid()) @db.Uuid
+  courierId         String                      @db.Uuid
+  amountMinor       Int
+  currency          String                      @default("EGP") @db.Char(3)
+  paidAt            DateTime                    @db.Timestamptz(3)
+  method            ExternalPaymentMethod
+  externalReference String?                     @db.VarChar(160)
+  note              String?
+  createdById       String                      @db.Uuid
+  idempotencyKey    String                      @unique @db.VarChar(128)
+  reversesPaymentId String?                     @unique @db.Uuid
+  createdAt         DateTime                    @default(now()) @db.Timestamptz(3)
+  courier           CourierProfile              @relation(fields: [courierId], references: [id], onDelete: Restrict)
+  createdBy         User                        @relation("ExternalPaymentCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  reversesPayment   ExternalPaymentRecord?      @relation("ExternalPaymentReversal", fields: [reversesPaymentId], references: [id], onDelete: Restrict)
+  reversedBy        ExternalPaymentRecord?      @relation("ExternalPaymentReversal")
+  allocations       ExternalPaymentAllocation[]
+  paymentProof      CourierPaymentProof?
+
+  @@index([courierId, paidAt])
+  @@index([externalReference])
+}
+
+model ExternalPaymentAllocation {
+  id                 String                @id @default(uuid()) @db.Uuid
+  paymentId          String                @db.Uuid
+  settlementPeriodId String                @db.Uuid
+  amountMinor        Int
+  createdAt          DateTime              @default(now()) @db.Timestamptz(3)
+  payment            ExternalPaymentRecord @relation(fields: [paymentId], references: [id], onDelete: Restrict)
+  settlementPeriod   SettlementPeriod      @relation(fields: [settlementPeriodId], references: [id], onDelete: Restrict)
+
+  @@unique([paymentId, settlementPeriodId])
+  @@index([settlementPeriodId, createdAt])
 }
 
 model Wallet {

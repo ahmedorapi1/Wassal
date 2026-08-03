@@ -2,6 +2,8 @@ export const orderStatuses = [
   'draft',
   'quoted',
   'searching_courier',
+  'no_courier_available',
+  'no_courier_available_final',
   'courier_assigned',
   'courier_arriving_pickup',
   'at_pickup',
@@ -9,9 +11,12 @@ export const orderStatuses = [
   'in_transit',
   'at_dropoff',
   'delivered',
+  'delivery_disputed',
   'delivery_failed',
   'returning_to_store',
+  'return_awaiting_merchant_confirmation',
   'returned',
+  'completed',
   'cancelled',
 ] as const;
 

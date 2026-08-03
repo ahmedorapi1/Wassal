@@ -12,10 +12,15 @@ export interface OtpProvider {
 
 export interface MapsProvider {
   geocode(address: string): Promise<Coordinates>;
+  validateCoordinates(coordinates: Coordinates): boolean;
   route(
     origin: Coordinates,
     destination: Coordinates,
-  ): Promise<{ distanceMeters: number; durationSeconds: number }>;
+  ): Promise<{
+    distanceMeters: number;
+    durationSeconds: number;
+    geometry?: string;
+  }>;
 }
 
 export interface NotificationProvider {
@@ -46,6 +51,7 @@ export interface ObjectStorageProvider {
     contentType: string;
     bytes: Uint8Array;
   }): Promise<void>;
+  deleteObject(objectKey: string): Promise<void>;
   getObject(objectKey: string): Promise<{
     contentType: string;
     bytes: Uint8Array;

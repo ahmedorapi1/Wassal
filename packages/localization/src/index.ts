@@ -4,7 +4,8 @@ export const supportedLocales = ['ar-EG', 'en'] as const;
 export type Locale = (typeof supportedLocales)[number];
 
 const arabic = {
-  brand: 'واصل',
+  brand: 'سِكّة',
+  slogan: 'كل طلب له سكة',
   phase: 'المرحلة التأسيسية',
   status: 'البنية الأساسية جاهزة للتطوير',
   description: 'منصة توصيل عند الطلب تربط المتاجر بمندوبي التوصيل في مصر.',
@@ -16,7 +17,8 @@ export type MessageKey = keyof typeof arabic;
 const messages: Record<Locale, Record<MessageKey, string>> = {
   'ar-EG': arabic,
   en: {
-    brand: 'Wasel',
+    brand: 'SKKA',
+    slogan: 'Every order has a route',
     phase: 'Foundation phase',
     status: 'The foundation is ready for development',
     description:

@@ -246,79 +246,109 @@ export class CourierService {
       throw new BadRequestException('A valid courier vehicle is required.');
     }
 
+    const checksumSha256 = createHash('sha256')
+      .update(file.buffer)
+      .digest('hex');
+    const originalFilename = safeMultipartFilename(file.originalname);
+    const currentDocument = await this.database.courierDocument.findFirst({
+      where: { courierId: profile.id, type: input.type, isCurrent: true },
+    });
+    if (
+      currentDocument &&
+      (!supersedesId ||
+        currentDocument.id === supersedesId ||
+        currentDocument.supersedesId === supersedesId) &&
+      currentDocument.checksumSha256 === checksumSha256 &&
+      currentDocument.contentType === file.mimetype &&
+      currentDocument.sizeBytes === file.size &&
+      currentDocument.originalFilename === originalFilename &&
+      currentDocument.documentNumber === (input.documentNumber ?? null) &&
+      currentDocument.vehicleId === (input.vehicleId ?? null) &&
+      sameOptionalDate(currentDocument.issuedAt, input.issuedAt) &&
+      sameOptionalDate(currentDocument.expiresAt, input.expiresAt)
+    ) {
+      return this.safeDocument(currentDocument);
+    }
+
     const storageKey = `${profile.id}/${randomUUID()}`;
     await this.storage.putObject({
       objectKey: storageKey,
       contentType: file.mimetype,
       bytes: file.buffer,
     });
-    const checksumSha256 = createHash('sha256')
-      .update(file.buffer)
-      .digest('hex');
-    return this.database.$transaction(async (transaction) => {
-      if (supersedesId) {
-        const previous = await transaction.courierDocument.findFirst({
-          where: {
-            id: supersedesId,
-            courierId: profile.id,
-            isCurrent: true,
-          },
-        });
-        if (!previous) {
-          throw new NotFoundException('Current document was not found.');
+    try {
+      return await this.database.$transaction(async (transaction) => {
+        if (supersedesId) {
+          const previous = await transaction.courierDocument.findFirst({
+            where: {
+              id: supersedesId,
+              courierId: profile.id,
+              isCurrent: true,
+            },
+          });
+          if (!previous) {
+            throw new NotFoundException('Current document was not found.');
+          }
+          if (previous.type !== input.type) {
+            throw new BadRequestException(
+              'Replacement must use the same document type.',
+            );
+          }
+          await transaction.courierDocument.update({
+            where: { id: previous.id },
+            data: {
+              isCurrent: false,
+              status: 'SUPERSEDED',
+              version: { increment: 1 },
+            },
+          });
+        } else {
+          const current = await transaction.courierDocument.findFirst({
+            where: { courierId: profile.id, type: input.type, isCurrent: true },
+          });
+          if (current) {
+            throw new ConflictException(
+              'Use the replacement endpoint for this document type.',
+            );
+          }
         }
-        if (previous.type !== input.type) {
-          throw new BadRequestException(
-            'Replacement must use the same document type.',
-          );
-        }
-        await transaction.courierDocument.update({
-          where: { id: previous.id },
+        const document = await transaction.courierDocument.create({
           data: {
-            isCurrent: false,
-            status: 'SUPERSEDED',
-            version: { increment: 1 },
+            courierId: profile.id,
+            type: input.type,
+            storageKey,
+            originalFilename,
+            contentType: file.mimetype,
+            sizeBytes: file.size,
+            checksumSha256,
+            ...(input.documentNumber
+              ? { documentNumber: input.documentNumber }
+              : {}),
+            ...(input.issuedAt ? { issuedAt: input.issuedAt } : {}),
+            ...(input.expiresAt ? { expiresAt: input.expiresAt } : {}),
+            ...(input.vehicleId ? { vehicleId: input.vehicleId } : {}),
+            ...(supersedesId ? { supersedesId } : {}),
           },
         });
-      } else {
-        const current = await transaction.courierDocument.findFirst({
-          where: { courierId: profile.id, type: input.type, isCurrent: true },
+        await writeAudit(transaction, {
+          actorId: userId,
+          actorRole: 'COURIER',
+          action: supersedesId
+            ? 'courier_document.replaced'
+            : 'courier_document.uploaded',
+          entityType: 'CourierDocument',
+          entityId: document.id,
         });
-        if (current) {
-          throw new ConflictException(
-            'Use the replacement endpoint for this document type.',
-          );
-        }
+        return this.safeDocument(document);
+      });
+    } catch (error) {
+      try {
+        await this.storage.deleteObject(storageKey);
+      } catch {
+        // Cleanup failure must not hide the database error that caused rollback.
       }
-      const document = await transaction.courierDocument.create({
-        data: {
-          courierId: profile.id,
-          type: input.type,
-          storageKey,
-          originalFilename: file.originalname.slice(0, 255),
-          contentType: file.mimetype,
-          sizeBytes: file.size,
-          checksumSha256,
-          ...(input.documentNumber
-            ? { documentNumber: input.documentNumber }
-            : {}),
-          ...(input.issuedAt ? { issuedAt: input.issuedAt } : {}),
-          ...(input.expiresAt ? { expiresAt: input.expiresAt } : {}),
-          ...(input.vehicleId ? { vehicleId: input.vehicleId } : {}),
-          ...(supersedesId ? { supersedesId } : {}),
-        },
-      });
-      await writeAudit(transaction, {
-        actorId: userId,
-        actorRole: 'COURIER',
-        action: supersedesId
-          ? 'courier_document.replaced'
-          : 'courier_document.uploaded',
-        entityType: 'CourierDocument',
-        entityId: document.id,
-      });
-      return this.safeDocument(document);
-    });
+      throw error;
+    }
   }
 
   public async documents(userId: string) {
@@ -451,4 +481,41 @@ export class CourierService {
     const { storageKey: _storageKey, ...safe } = document;
     return safe;
   }
+}
+
+function sameOptionalDate(
+  stored: Date | null,
+  received: Date | undefined,
+): boolean {
+  return stored?.getTime() === received?.getTime();
+}
+
+export function safeMultipartFilename(received: string): string {
+  let decoded = received;
+  if (/%[0-9a-f]{2}/iu.test(decoded)) {
+    try {
+      decoded = decodeURIComponent(decoded);
+    } catch {
+      // Preserve malformed percent text and continue with sanitization.
+    }
+  }
+  if ([...decoded].every((character) => character.charCodeAt(0) <= 0xff)) {
+    const utf8Candidate = Buffer.from(decoded, 'latin1').toString('utf8');
+    if (!utf8Candidate.includes('\uFFFD')) decoded = utf8Candidate;
+  }
+  return (
+    replaceControlCharacters(decoded.normalize('NFC'))
+      .replaceAll(/[/\\]/gu, '_')
+      .trim()
+      .slice(0, 255) || 'document'
+  );
+}
+
+function replaceControlCharacters(value: string): string {
+  return [...value]
+    .map((character) => {
+      const codePoint = character.codePointAt(0) ?? 0;
+      return codePoint <= 0x1f || codePoint === 0x7f ? '_' : character;
+    })
+    .join('');
 }

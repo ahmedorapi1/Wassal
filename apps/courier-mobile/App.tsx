@@ -1,10 +1,15 @@
 import * as DocumentPicker from 'expo-document-picker';
+import { File, Paths } from 'expo-file-system';
+import * as ImagePicker from 'expo-image-picker';
 import * as SecureStore from 'expo-secure-store';
 import { StatusBar } from 'expo-status-bar';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
+  Image,
   I18nManager,
+  NativeModules,
+  Platform,
   Pressable,
   SafeAreaView,
   ScrollView,
@@ -13,19 +18,40 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import { brandColors } from '@wasel/ui/brand';
 
+import { resolveCourierApiUrl } from './api-base-url';
+import {
+  appendReactNativeMultipart,
+  stageAndroidDocument,
+  type MultipartAppender,
+} from './android-document-upload';
 import { courierScreenForState } from './app-flow';
+import skkaLogo from '../../logo.png';
+import {
+  asDocumentUploadError,
+  DocumentUploadError,
+  documentUploadErrorFromResponse,
+  prepareDocumentAsset,
+  type PreparedDocumentAsset,
+} from './document-upload';
+import {
+  ApiRequestError,
+  MobileSession,
+  type MobileSessionTokens,
+} from './mobile-session';
+import { OperationalCourierApp } from './operational-app';
 
 I18nManager.allowRTL(true);
 
-const apiUrl =
-  process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:3000/api/v1';
-const tokenKey = 'wasel.phase1.tokens';
+const apiUrl = resolveCourierApiUrl(
+  process.env.EXPO_PUBLIC_API_URL,
+  (NativeModules.SourceCode as { scriptURL?: string } | undefined)?.scriptURL,
+  Platform.OS,
+);
+const tokenKey = 'wassal.phase1.tokens';
 
-type Tokens = {
-  accessToken: string;
-  refreshToken: string;
-};
+type Tokens = MobileSessionTokens;
 type CourierProfile = {
   id: string;
   fullName: string;
@@ -56,6 +82,34 @@ type Verification = {
   eligibility: { eligible: boolean; reasons: string[] };
 };
 
+type DocumentStepType =
+  | 'NATIONAL_ID_FRONT'
+  | 'NATIONAL_ID_BACK'
+  | 'DRIVER_LICENSE'
+  | 'VEHICLE_LICENSE'
+  | 'PROFILE_PHOTO';
+type SelectedDocumentAsset = PreparedDocumentAsset & {
+  picker: 'image' | 'pdf';
+};
+type SelectedDocuments = Partial<
+  Record<DocumentStepType, SelectedDocumentAsset>
+>;
+
+const expoFileSystem = {
+  cacheDirectory: Paths.cache.uri,
+  copyAsync: async ({ from, to }: { from: string; to: string }) => {
+    await new File(from).copy(new File(to), { overwrite: true });
+  },
+  getInfoAsync: async (uri: string) => {
+    const file = new File(uri);
+    return {
+      exists: file.exists,
+      isDirectory: false,
+      size: file.size,
+    };
+  },
+};
+
 const documentSteps = [
   { type: 'NATIONAL_ID_FRONT', label: 'الوجه الأمامي للبطاقة' },
   { type: 'NATIONAL_ID_BACK', label: 'الوجه الخلفي للبطاقة' },
@@ -66,7 +120,7 @@ const documentSteps = [
 
 async function api<T>(
   path: string,
-  tokens?: Tokens,
+  accessToken?: string,
   options: RequestInit = {},
 ): Promise<T> {
   const response = await fetch(`${apiUrl}${path}`, {
@@ -75,7 +129,7 @@ async function api<T>(
       ...(options.body && !(options.body instanceof FormData)
         ? { 'Content-Type': 'application/json' }
         : {}),
-      ...(tokens ? { Authorization: `Bearer ${tokens.accessToken}` } : {}),
+      ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
       ...options.headers,
     },
   });
@@ -83,7 +137,10 @@ async function api<T>(
     error?: { message?: string };
   };
   if (!response.ok) {
-    throw new Error(body.error?.message ?? 'تعذر إتمام الطلب');
+    throw new ApiRequestError(
+      body.error?.message ?? 'تعذر إتمام الطلب',
+      response.status,
+    );
   }
   return body;
 }
@@ -91,41 +148,54 @@ async function api<T>(
 export default function App() {
   const [tokens, setTokens] = useState<Tokens>();
   const [phone, setPhone] = useState('01001000011');
-  const [challengeId, setChallengeId] = useState('');
-  const [otp, setOtp] = useState('123456');
+  const [password, setPassword] = useState('CourierDemo123');
   const [profile, setProfile] = useState<CourierProfile>();
   const [vehicle, setVehicle] = useState<Vehicle>();
   const [documents, setDocuments] = useState<CourierDocument[]>([]);
   const [verification, setVerification] = useState<Verification>();
   const [screen, setScreen] = useState<
-    'auth' | 'otp' | 'profile' | 'vehicle' | 'documents' | 'review' | 'status'
+    'auth' | 'profile' | 'vehicle' | 'documents' | 'review' | 'status'
   >('auth');
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState('');
+  const [selectedDocuments, setSelectedDocuments] = useState<SelectedDocuments>(
+    {},
+  );
+  const [uploadingDocumentType, setUploadingDocumentType] =
+    useState<DocumentStepType>();
+  const [session] = useState(
+    () =>
+      new MobileSession({
+        storage: {
+          load: () => SecureStore.getItemAsync(tokenKey),
+          save: (value) => SecureStore.setItemAsync(tokenKey, value),
+          clear: () => SecureStore.deleteItemAsync(tokenKey),
+        },
+        transport: api,
+        onTokensChanged: setTokens,
+      }),
+  );
 
-  useEffect(() => {
-    void SecureStore.getItemAsync(tokenKey).then(async (stored) => {
-      if (stored) {
-        const restored = JSON.parse(stored) as Tokens;
-        setTokens(restored);
-        await hydrate(restored);
-      }
-      setLoading(false);
-    });
+  const resetLocalState = useCallback(() => {
+    setProfile(undefined);
+    setVehicle(undefined);
+    setDocuments([]);
+    setSelectedDocuments({});
+    setVerification(undefined);
+    setMessage('');
+    setScreen('auth');
   }, []);
 
-  async function hydrate(activeTokens: Tokens) {
+  const hydrate = useCallback(async () => {
     try {
-      const currentProfile = await api<CourierProfile>(
-        '/couriers/profile',
-        activeTokens,
-      );
+      const currentProfile =
+        await session.request<CourierProfile>('/couriers/profile');
       setProfile(currentProfile);
       const [vehicleRows, documentRows, currentVerification] =
         await Promise.all([
-          api<Vehicle[]>('/couriers/vehicles', activeTokens),
-          api<CourierDocument[]>('/couriers/documents', activeTokens),
-          api<Verification>('/couriers/verification-status', activeTokens),
+          session.request<Vehicle[]>('/couriers/vehicles'),
+          session.request<CourierDocument[]>('/couriers/documents'),
+          session.request<Verification>('/couriers/verification-status'),
         ]);
       setVehicle(vehicleRows.find((row) => row.id));
       setDocuments(documentRows);
@@ -138,47 +208,41 @@ export default function App() {
           requiredDocumentCount: documentSteps.length,
         }),
       );
-    } catch {
-      setScreen('profile');
-    }
-  }
-
-  async function requestOtp() {
-    setLoading(true);
-    setMessage('');
-    try {
-      const response = await api<{ challengeId: string }>(
-        '/auth/request-otp',
-        undefined,
-        { method: 'POST', body: JSON.stringify({ phone }) },
-      );
-      setChallengeId(response.challengeId);
-      setScreen('otp');
     } catch (error) {
+      if (error instanceof ApiRequestError && error.status === 404) {
+        setScreen('profile');
+        return;
+      }
+      if (error instanceof ApiRequestError && error.status === 401) {
+        resetLocalState();
+        return;
+      }
       setMessage((error as Error).message);
-    } finally {
-      setLoading(false);
     }
-  }
+  }, [resetLocalState, session]);
 
-  async function verifyOtp() {
+  useEffect(() => {
+    void (async () => {
+      try {
+        const restored = await session.restore();
+        if (restored) await hydrate();
+      } catch (error) {
+        setMessage((error as Error).message);
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, [hydrate, session]);
+
+  async function login() {
     setLoading(true);
     try {
-      const response = await api<{ tokens: Tokens }>(
-        '/auth/verify-otp',
-        undefined,
-        {
-          method: 'POST',
-          body: JSON.stringify({
-            challengeId,
-            code: otp,
-            registrationRole: 'courier',
-          }),
-        },
-      );
-      setTokens(response.tokens);
-      await SecureStore.setItemAsync(tokenKey, JSON.stringify(response.tokens));
-      await hydrate(response.tokens);
+      const response = await api<{ tokens: Tokens }>('/auth/login', undefined, {
+        method: 'POST',
+        body: JSON.stringify({ phone, password }),
+      });
+      await session.establish(response.tokens);
+      await hydrate();
     } catch (error) {
       setMessage((error as Error).message);
     } finally {
@@ -195,7 +259,7 @@ export default function App() {
     if (!tokens) return;
     setLoading(true);
     try {
-      const saved = await api<CourierProfile>('/couriers/profile', tokens, {
+      const saved = await session.request<CourierProfile>('/couriers/profile', {
         method: profile ? 'PATCH' : 'POST',
         body: JSON.stringify({
           ...input,
@@ -220,9 +284,8 @@ export default function App() {
     if (!tokens) return;
     setLoading(true);
     try {
-      const saved = await api<Vehicle>(
+      const saved = await session.request<Vehicle>(
         vehicle ? `/couriers/vehicles/${vehicle.id}` : '/couriers/vehicles',
-        tokens,
         {
           method: vehicle ? 'PATCH' : 'POST',
           body: JSON.stringify({
@@ -240,31 +303,111 @@ export default function App() {
     }
   }
 
-  async function uploadDocument(type: (typeof documentSteps)[number]['type']) {
-    if (!tokens) return;
-    const picked = await DocumentPicker.getDocumentAsync({
-      copyToCacheDirectory: true,
-      multiple: false,
-      type: ['image/jpeg', 'image/png', 'application/pdf'],
-    });
-    if (picked.canceled) return;
-    const asset = picked.assets[0];
-    if (!asset) return;
-    const form = new FormData();
-    form.append('type', type);
-    if (type === 'VEHICLE_LICENSE' && vehicle) {
-      form.append('vehicleId', vehicle.id);
+  async function selectDocument(
+    type: DocumentStepType,
+    source: 'image' | 'pdf',
+  ) {
+    if (!tokens) {
+      setMessage(new DocumentUploadError('unauthorized').message);
+      return;
     }
-    if (type !== 'PROFILE_PHOTO') {
-      form.append('expiresAt', '2030-12-31');
-    }
-    form.append('file', {
-      uri: asset.uri,
-      name: asset.name,
-      type: asset.mimeType ?? 'application/pdf',
-    } as unknown as Blob);
-    setLoading(true);
+
+    let pickedAsset:
+      | {
+          uri: string;
+          name?: string | null;
+          mimeType?: string | null;
+          size?: number | null;
+        }
+      | undefined;
     try {
+      if (source === 'image') {
+        const permission =
+          await ImagePicker.requestMediaLibraryPermissionsAsync();
+        if (!permission.granted) {
+          setMessage('يلزم السماح بالوصول للصور لاختيار ملف الهوية.');
+          return;
+        }
+        const picked = await ImagePicker.launchImageLibraryAsync({
+          allowsEditing: false,
+          allowsMultipleSelection: false,
+          mediaTypes: ['images'],
+          quality: 1,
+          selectionLimit: 1,
+        });
+        if (picked.canceled) return;
+        const asset = picked.assets[0];
+        if (asset) {
+          pickedAsset = {
+            uri: asset.uri,
+            name: asset.fileName,
+            mimeType: asset.mimeType,
+            size: asset.fileSize,
+          };
+        }
+      } else {
+        const picked = await DocumentPicker.getDocumentAsync({
+          // Ask the picker to copy while its Android provider permission is
+          // active. stageAndroidDocument still handles a content:// fallback.
+          copyToCacheDirectory: true,
+          multiple: false,
+          type: 'application/pdf',
+        });
+        if (picked.canceled) return;
+        const asset = picked.assets[0];
+        if (asset) {
+          pickedAsset = {
+            uri: asset.uri,
+            name: asset.name,
+            mimeType: asset.mimeType,
+            size: asset.size,
+          };
+        }
+      }
+    } catch (error) {
+      setMessage(asDocumentUploadError(error, 'unreadable').message);
+      return;
+    }
+
+    if (!pickedAsset) {
+      setMessage(new DocumentUploadError('unreadable').message);
+      return;
+    }
+
+    try {
+      const prepared = prepareDocumentAsset(pickedAsset);
+      setSelectedDocuments((current) => ({
+        ...current,
+        [type]: { ...prepared, picker: source },
+      }));
+      setMessage(
+        'تم اختيار الملف. راجع الاسم والنوع والحجم ثم اضغط رفع المستند.',
+      );
+    } catch (error) {
+      setMessage(asDocumentUploadError(error, 'unreadable').message);
+    }
+  }
+
+  async function uploadDocument(type: DocumentStepType) {
+    if (!tokens) {
+      setMessage(new DocumentUploadError('unauthorized').message);
+      return;
+    }
+    const prepared = selectedDocuments[type];
+    if (!prepared || uploadingDocumentType) return;
+
+    setLoading(true);
+    setUploadingDocumentType(type);
+    setMessage('جارٍ رفع الملف...');
+    let staged: Awaited<ReturnType<typeof stageAndroidDocument>> | undefined;
+    try {
+      staged = await stageAndroidDocument(
+        prepared,
+        expoFileSystem,
+        `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+      );
+      const uploadFile = staged;
+
       const current = documents.find(
         (document) =>
           document.type === type && document.status !== 'SUPERSEDED',
@@ -272,25 +415,134 @@ export default function App() {
       const path = current
         ? `/couriers/documents/${current.id}/replacement`
         : '/couriers/documents';
-      await api(path, tokens, { method: 'POST', body: form });
-      const rows = await api<CourierDocument[]>('/couriers/documents', tokens);
+      const parameters: Record<string, string> = { type: String(type) };
+      if (type === 'VEHICLE_LICENSE' && vehicle) {
+        parameters.vehicleId = String(vehicle.id);
+      }
+      if (type !== 'PROFILE_PHOTO') {
+        parameters.expiresAt = '2030-12-31';
+      }
+
+      if (__DEV__) {
+        console.info('[courier-document-upload] multipart request', {
+          url: `${apiUrl}${path}`,
+          picker:
+            prepared.picker === 'image'
+              ? 'expo-image-picker'
+              : 'expo-document-picker',
+          sourceScheme: uploadFile.sourceScheme,
+          transport: 'React Native fetch + FormData',
+          fileField: 'file',
+          file: {
+            name: uploadFile.name,
+            type: uploadFile.mimeType,
+            size: uploadFile.size,
+          },
+          fields: parameters,
+        });
+      }
+
+      const sendUpload = async (accessToken: string) => {
+        const formData = new FormData();
+        appendReactNativeMultipart(
+          formData as unknown as MultipartAppender,
+          parameters,
+          uploadFile,
+        );
+        const response = await fetch(`${apiUrl}${path}`, {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+          },
+          body: formData,
+        });
+        return {
+          status: response.status,
+          body: await response.text(),
+        };
+      };
+
+      const activeTokens = session.currentTokens();
+      if (!activeTokens) {
+        throw new DocumentUploadError('unauthorized');
+      }
+      let response;
+      try {
+        response = await sendUpload(activeTokens.accessToken);
+      } catch (error) {
+        throw asDocumentUploadError(error, 'network');
+      }
+
+      if (response.status === 401) {
+        let refreshedTokens: Tokens;
+        try {
+          refreshedTokens = await session.refreshAfterUnauthorized(
+            activeTokens.accessToken,
+          );
+        } catch {
+          throw new DocumentUploadError('unauthorized');
+        }
+        try {
+          response = await sendUpload(refreshedTokens.accessToken);
+        } catch (error) {
+          throw asDocumentUploadError(error, 'network');
+        }
+      }
+
+      if (__DEV__) {
+        console.info('[courier-document-upload] response', {
+          status: response.status,
+          receivedMimeType: uploadFile.mimeType,
+          sentBytes: uploadFile.size,
+        });
+      }
+      if (response.status < 200 || response.status >= 300) {
+        throw documentUploadErrorFromResponse(response.status, response.body);
+      }
+
+      const rows = await session.request<CourierDocument[]>(
+        '/couriers/documents',
+      );
       setDocuments(rows);
-      setMessage('تم رفع الملف وحفظ نسخته بأمان.');
+      setSelectedDocuments((currentSelections) => {
+        const next = { ...currentSelections };
+        delete next[type];
+        return next;
+      });
+      setMessage('تم رفع المستند بنجاح.');
     } catch (error) {
-      setMessage((error as Error).message);
+      setMessage(asDocumentUploadError(error, 'server_rejection').message);
     } finally {
+      if (staged?.cacheCopyCreated) {
+        try {
+          const cached = new File(staged.uri);
+          if (cached.exists) cached.delete();
+        } catch {
+          // The private cache copy is best-effort cleanup and has no token.
+        }
+      }
+      setUploadingDocumentType(undefined);
       setLoading(false);
     }
+  }
+
+  function removeSelectedDocument(type: DocumentStepType) {
+    if (uploadingDocumentType) return;
+    setSelectedDocuments((current) => {
+      const next = { ...current };
+      delete next[type];
+      return next;
+    });
+    setMessage('تمت إزالة الملف المختار. يمكنك اختيار ملف آخر.');
   }
 
   async function submit() {
     if (!tokens) return;
     setLoading(true);
     try {
-      await api('/couriers/submit-for-review', tokens, { method: 'POST' });
-      const current = await api<Verification>(
+      await session.request('/couriers/submit-for-review', { method: 'POST' });
+      const current = await session.request<Verification>(
         '/couriers/verification-status',
-        tokens,
       );
       setVerification(current);
       setScreen('status');
@@ -304,23 +556,25 @@ export default function App() {
   async function signOut() {
     if (tokens) {
       try {
-        await api('/auth/logout', tokens, { method: 'POST' });
+        await session.request('/auth/logout', { method: 'POST' });
       } catch {
         // Local credentials are still cleared if the API is unavailable.
       }
     }
-    await SecureStore.deleteItemAsync(tokenKey);
-    setTokens(undefined);
-    setProfile(undefined);
-    setScreen('auth');
+    await session.clear();
+    resetLocalState();
   }
 
   if (loading && screen === 'auth') {
     return (
       <SafeAreaView style={styles.loading}>
-        <ActivityIndicator color="#087e73" size="large" />
+        <ActivityIndicator color={brandColors.primary} size="large" />
       </SafeAreaView>
     );
+  }
+
+  if (tokens && verification?.status === 'approved') {
+    return <OperationalCourierApp session={session} onSignOut={signOut} />;
   }
 
   return (
@@ -331,15 +585,22 @@ export default function App() {
         keyboardShouldPersistTaps="handled"
       >
         <View style={styles.header}>
-          <View style={styles.logo}>
-            <Text style={styles.logoText}>و</Text>
-          </View>
+          <Image
+            accessibilityLabel="شعار سِكّة"
+            source={skkaLogo}
+            style={styles.logo}
+            resizeMode="contain"
+          />
           <View style={styles.headerCopy}>
-            <Text style={styles.brand}>واصل للمندوبين</Text>
-            <Text style={styles.phase}>المرحلة الأولى · ملف التحقق</Text>
+            <Text style={styles.brand}>سِكّة للمندوبين</Text>
+            <Text style={styles.phase}>المرحلة الثانية · ملف التحقق</Text>
           </View>
           {tokens && (
-            <Pressable onPress={signOut} accessibilityRole="button">
+            <Pressable
+              onPress={signOut}
+              accessibilityRole="button"
+              style={styles.signOutAction}
+            >
               <Text style={styles.signOut}>خروج</Text>
             </Pressable>
           )}
@@ -350,15 +611,12 @@ export default function App() {
         )}
 
         {screen === 'auth' && (
-          <AuthCard phone={phone} setPhone={setPhone} onSubmit={requestOtp} />
-        )}
-        {screen === 'otp' && (
-          <OtpCard
+          <AuthCard
             phone={phone}
-            code={otp}
-            setCode={setOtp}
-            onSubmit={verifyOtp}
-            onBack={() => setScreen('auth')}
+            setPhone={setPhone}
+            password={password}
+            setPassword={setPassword}
+            onSubmit={login}
           />
         )}
         {screen === 'profile' && (
@@ -374,6 +632,10 @@ export default function App() {
         {screen === 'documents' && (
           <DocumentsCard
             documents={documents}
+            selectedDocuments={selectedDocuments}
+            uploadingType={uploadingDocumentType}
+            onRemove={removeSelectedDocument}
+            onSelect={selectDocument}
             onUpload={uploadDocument}
             onContinue={() => setScreen('review')}
           />
@@ -398,7 +660,9 @@ export default function App() {
         {loading && (
           <View style={styles.busy}>
             <ActivityIndicator color="#ffffff" />
-            <Text style={styles.busyText}>جارٍ الحفظ…</Text>
+            <Text style={styles.busyText}>
+              {uploadingDocumentType ? 'جارٍ رفع الملف...' : 'جارٍ الحفظ…'}
+            </Text>
           </View>
         )}
         {message && <Text style={styles.message}>{message}</Text>}
@@ -410,15 +674,28 @@ export default function App() {
 function AuthCard({
   phone,
   setPhone,
+  password,
+  setPassword,
   onSubmit,
 }: {
   phone: string;
   setPhone: (value: string) => void;
+  password: string;
+  setPassword: (value: string) => void;
   onSubmit: () => void;
 }) {
   return (
     <View style={styles.heroCard}>
-      <Text style={styles.overline}>ابدأ مشوارك مع واصل</Text>
+      <Image
+        accessibilityLabel="شعار سِكّة"
+        resizeMode="contain"
+        source={skkaLogo}
+        style={styles.onboardingIllustration}
+      />
+      <Text style={[styles.overline, styles.heroOverline]}>
+        ابدأ مشوارك مع سِكّة
+      </Text>
+      <Text style={styles.heroSlogan}>كل طلب له سكة</Text>
       <Text style={styles.heroTitle}>خطوة واحدة نحو حساب مندوب موثق.</Text>
       <Text style={styles.heroBody}>
         سجّل برقم موبايل مصري، ثم أكمل بياناتك ومستنداتك للمراجعة.
@@ -429,42 +706,17 @@ function AuthCard({
         onChange={setPhone}
         keyboardType="phone-pad"
       />
-      <PrimaryButton label="إرسال رمز التحقق" onPress={onSubmit} />
-      <Text style={styles.privacy}>
-        لن نشارك رقمك. رمز التطوير المحلي هو 123456.
-      </Text>
-    </View>
-  );
-}
-
-function OtpCard({
-  phone,
-  code,
-  setCode,
-  onSubmit,
-  onBack,
-}: {
-  phone: string;
-  code: string;
-  setCode: (value: string) => void;
-  onSubmit: () => void;
-  onBack: () => void;
-}) {
-  return (
-    <View style={styles.card}>
-      <Text style={styles.overline}>تحقق آمن</Text>
-      <Text style={styles.title}>أدخل الرمز المكوّن من ٦ أرقام</Text>
-      <Text style={styles.body}>أُرسل الرمز إلى {phone}</Text>
       <Field
-        label="رمز التحقق"
-        value={code}
-        onChange={setCode}
-        keyboardType="number-pad"
+        label="كلمة المرور"
+        value={password}
+        onChange={setPassword}
+        secureTextEntry
       />
-      <PrimaryButton label="تأكيد الرقم" onPress={onSubmit} />
-      <Pressable onPress={onBack}>
-        <Text style={styles.link}>تغيير رقم الموبايل</Text>
-      </Pressable>
+      <PrimaryButton label="دخول حساب المندوب" onPress={onSubmit} />
+      <Text style={styles.privacy}>
+        لا تستخدم المنصة SMS أو OTP في التشغيل التجريبي المضبوط. الخصوصية
+        والشروط متاحتان من شاشة حول التطبيق.
+      </Text>
     </View>
   );
 }
@@ -570,11 +822,19 @@ function VehicleCard({
 
 function DocumentsCard({
   documents,
+  selectedDocuments,
+  uploadingType,
+  onRemove,
+  onSelect,
   onUpload,
   onContinue,
 }: {
   documents: CourierDocument[];
-  onUpload: (type: (typeof documentSteps)[number]['type']) => void;
+  selectedDocuments: SelectedDocuments;
+  uploadingType?: DocumentStepType;
+  onRemove: (type: DocumentStepType) => void;
+  onSelect: (type: DocumentStepType, source: 'image' | 'pdf') => void;
+  onUpload: (type: DocumentStepType) => void;
   onContinue: () => void;
 }) {
   const current = documentSteps.map((step) => ({
@@ -589,46 +849,114 @@ function DocumentsCard({
       <Text style={styles.title}>ارفع صوراً واضحة وحديثة</Text>
       <Text style={styles.body}>نقبل JPG وPNG وPDF بحد أقصى ٥ ميجابايت.</Text>
       <View style={styles.documentList}>
-        {current.map(({ type, label, document }) => (
-          <Pressable
-            key={type}
-            style={styles.documentRow}
-            onPress={() => onUpload(type)}
-            accessibilityRole="button"
-          >
-            <View
-              style={[styles.documentIcon, document && styles.documentIconDone]}
-            >
-              <Text style={styles.documentIconText}>
-                {document ? '✓' : '+'}
-              </Text>
+        {current.map(({ type, label, document }) => {
+          const selected = selectedDocuments[type];
+          const uploading = uploadingType === type;
+          return (
+            <View key={type} style={styles.documentBlock}>
+              <View style={styles.documentRow}>
+                <View
+                  style={[
+                    styles.documentIcon,
+                    document && styles.documentIconDone,
+                  ]}
+                >
+                  <Text style={styles.documentIconText}>
+                    {document ? '✓' : '+'}
+                  </Text>
+                </View>
+                <View style={styles.documentCopy}>
+                  <Text style={styles.documentLabel}>{label}</Text>
+                  <Text
+                    style={[
+                      styles.documentStatus,
+                      document?.status === 'CHANGES_REQUESTED' &&
+                        styles.documentWarning,
+                    ]}
+                  >
+                    {document?.status === 'CHANGES_REQUESTED'
+                      ? (document.reviewNotes ?? 'مطلوب الاستبدال')
+                      : document
+                        ? 'تم الرفع · اضغط للاستبدال'
+                        : 'اختر صورة JPG/PNG أو ملف PDF'}
+                  </Text>
+                </View>
+                <View style={styles.uploadChoices}>
+                  <Pressable
+                    accessibilityRole="button"
+                    disabled={Boolean(uploadingType)}
+                    onPress={() => onSelect(type, 'image')}
+                    style={[
+                      styles.uploadChoice,
+                      uploadingType && styles.uploadChoiceDisabled,
+                    ]}
+                  >
+                    <Text style={styles.uploadChoiceText}>صورة</Text>
+                  </Pressable>
+                  <Pressable
+                    accessibilityRole="button"
+                    disabled={Boolean(uploadingType)}
+                    onPress={() => onSelect(type, 'pdf')}
+                    style={[
+                      styles.uploadChoice,
+                      uploadingType && styles.uploadChoiceDisabled,
+                    ]}
+                  >
+                    <Text style={styles.uploadChoiceText}>PDF</Text>
+                  </Pressable>
+                </View>
+              </View>
+              {selected ? (
+                <View style={styles.selectedFile}>
+                  <View style={styles.selectedFileCopy}>
+                    <Text style={styles.selectedFileName}>{selected.name}</Text>
+                    <Text style={styles.selectedFileMeta}>
+                      {selected.mimeType} · {formatFileSize(selected.size)}
+                    </Text>
+                  </View>
+                  <View style={styles.selectedFileActions}>
+                    <Pressable
+                      accessibilityRole="button"
+                      disabled={Boolean(uploadingType)}
+                      onPress={() => onRemove(type)}
+                      style={styles.removeFileAction}
+                    >
+                      <Text style={styles.removeFileText}>إزالة</Text>
+                    </Pressable>
+                    <Pressable
+                      accessibilityRole="button"
+                      disabled={Boolean(uploadingType)}
+                      onPress={() => onUpload(type)}
+                      style={styles.sendFileAction}
+                    >
+                      <Text style={styles.sendFileText}>
+                        {uploading ? 'جارٍ الرفع...' : 'رفع المستند'}
+                      </Text>
+                    </Pressable>
+                  </View>
+                </View>
+              ) : null}
             </View>
-            <View style={styles.documentCopy}>
-              <Text style={styles.documentLabel}>{label}</Text>
-              <Text
-                style={[
-                  styles.documentStatus,
-                  document?.status === 'CHANGES_REQUESTED' &&
-                    styles.documentWarning,
-                ]}
-              >
-                {document?.status === 'CHANGES_REQUESTED'
-                  ? (document.reviewNotes ?? 'مطلوب الاستبدال')
-                  : document
-                    ? 'تم الرفع · اضغط للاستبدال'
-                    : 'اضغط لاختيار ملف'}
-              </Text>
-            </View>
-          </Pressable>
-        ))}
+          );
+        })}
       </View>
       <PrimaryButton
         label="مراجعة الطلب"
-        disabled={current.some((row) => !row.document)}
+        disabled={
+          Boolean(uploadingType) || current.some((row) => !row.document)
+        }
         onPress={onContinue}
       />
     </View>
   );
+}
+
+function formatFileSize(size: number | undefined): string {
+  if (typeof size !== 'number' || !Number.isFinite(size) || size < 0) {
+    return 'الحجم سيُتحقق منه قبل الرفع';
+  }
+  if (size < 1_024) return `${size} بايت`;
+  return `${(size / 1_048_576).toFixed(2)} ميجابايت`;
 }
 
 function ReviewCard({
@@ -694,7 +1022,7 @@ function StatusCard({
       approved: {
         icon: '✓',
         title: 'تم اعتماد حسابك',
-        body: 'ملفك مكتمل وصالح. وضع الاتصال وطلبات التوصيل سيصلان في المرحلة الثانية.',
+        body: 'ملفك مكتمل وصالح. حالة الاتصال وعروض التوصيل غير مفعلة حتى الآن.',
       },
       rejected: {
         icon: '×',
@@ -736,7 +1064,8 @@ function StatusCard({
           ))}
       </View>
       <Text style={styles.phaseNotice}>
-        لا تتوفر حالة الاتصال أو عروض التوصيل في هذه المرحلة.
+        المرحلة الثانية تتوقف عند إنشاء طلب المتجر والبحث عن مندوب. لا تتوفر
+        حالة الاتصال أو عروض التوصيل في تطبيق المندوب حتى الآن.
       </Text>
     </View>
   );
@@ -776,11 +1105,13 @@ function Field({
   value,
   onChange,
   keyboardType = 'default',
+  secureTextEntry = false,
 }: {
   label: string;
   value: string;
   onChange: (value: string) => void;
   keyboardType?: 'default' | 'phone-pad' | 'number-pad';
+  secureTextEntry?: boolean;
 }) {
   return (
     <View style={styles.field}>
@@ -790,6 +1121,7 @@ function Field({
         value={value}
         onChangeText={onChange}
         keyboardType={keyboardType}
+        secureTextEntry={secureTextEntry}
         textAlign="right"
       />
     </View>
@@ -840,10 +1172,10 @@ function SummaryRow({
 }
 
 const styles = StyleSheet.create({
-  safeArea: { backgroundColor: '#f3f6f4', flex: 1 },
+  safeArea: { backgroundColor: brandColors.background, flex: 1 },
   loading: {
     alignItems: 'center',
-    backgroundColor: '#f3f6f4',
+    backgroundColor: brandColors.background,
     flex: 1,
     justifyContent: 'center',
   },
@@ -855,58 +1187,87 @@ const styles = StyleSheet.create({
   },
   header: {
     alignItems: 'center',
-    flexDirection: 'row-reverse',
+    justifyContent: 'center',
     marginBottom: 24,
+    minHeight: 140,
+    position: 'relative',
   },
   logo: {
-    alignItems: 'center',
-    backgroundColor: '#f1c75b',
-    borderRadius: 12,
-    height: 44,
-    justifyContent: 'center',
-    width: 44,
+    alignSelf: 'center',
+    height: 86,
+    width: 112,
   },
-  logoText: { color: '#112d31', fontSize: 24, fontWeight: '900' },
-  headerCopy: { flex: 1, marginHorizontal: 10 },
+  headerCopy: { alignItems: 'center', marginTop: 4 },
   brand: {
-    color: '#112d31',
+    color: brandColors.primary,
     fontSize: 16,
     fontWeight: '900',
-    textAlign: 'right',
+    textAlign: 'center',
   },
-  phase: { color: '#6e7e82', fontSize: 11, marginTop: 2, textAlign: 'right' },
-  signOut: { color: '#a13e30', fontWeight: '700' },
-  heroCard: { backgroundColor: '#112d31', borderRadius: 24, padding: 24 },
+  phase: {
+    color: brandColors.textMuted,
+    fontSize: 11,
+    marginTop: 2,
+    textAlign: 'center',
+  },
+  signOut: {
+    color: brandColors.danger,
+    fontWeight: '700',
+  },
+  signOutAction: {
+    position: 'absolute',
+    right: 0,
+    top: 8,
+  },
+  heroCard: {
+    backgroundColor: brandColors.primaryDark,
+    borderRadius: 24,
+    padding: 24,
+  },
+  onboardingIllustration: {
+    alignSelf: 'center',
+    height: 110,
+    marginBottom: 4,
+    width: 230,
+  },
   card: {
-    backgroundColor: '#ffffff',
-    borderColor: '#dce5e2',
+    backgroundColor: brandColors.surface,
+    borderColor: brandColors.border,
     borderRadius: 24,
     borderWidth: 1,
     padding: 24,
   },
   overline: {
-    color: '#159588',
+    color: brandColors.accentText,
     fontSize: 13,
     fontWeight: '900',
     marginBottom: 8,
     textAlign: 'right',
   },
+  heroOverline: { color: brandColors.accent },
+  heroSlogan: {
+    color: brandColors.accent,
+    fontSize: 16,
+    fontWeight: '900',
+    marginBottom: 8,
+    textAlign: 'center',
+  },
   heroTitle: {
-    color: '#ffffff',
+    color: brandColors.surface,
     fontSize: 34,
     fontWeight: '900',
     lineHeight: 44,
     textAlign: 'right',
   },
   title: {
-    color: '#112d31',
+    color: brandColors.text,
     fontSize: 28,
     fontWeight: '900',
     lineHeight: 38,
     textAlign: 'right',
   },
   heroBody: {
-    color: '#bfd3d0',
+    color: '#d9e4f7',
     fontSize: 15,
     lineHeight: 25,
     marginBottom: 12,
@@ -914,7 +1275,7 @@ const styles = StyleSheet.create({
     textAlign: 'right',
   },
   body: {
-    color: '#6b797e',
+    color: brandColors.textMuted,
     fontSize: 15,
     lineHeight: 25,
     marginBottom: 12,
@@ -930,24 +1291,28 @@ const styles = StyleSheet.create({
     textAlign: 'right',
   },
   input: {
-    backgroundColor: '#ffffff',
-    borderColor: '#cad7d4',
+    backgroundColor: brandColors.surface,
+    borderColor: brandColors.border,
     borderRadius: 12,
     borderWidth: 1,
-    color: '#112d31',
+    color: brandColors.text,
     minHeight: 50,
     paddingHorizontal: 14,
   },
   primaryButton: {
     alignItems: 'center',
-    backgroundColor: '#087e73',
+    backgroundColor: brandColors.primary,
     borderRadius: 12,
     justifyContent: 'center',
     marginTop: 20,
     minHeight: 52,
   },
   primaryDisabled: { backgroundColor: '#aebdb9' },
-  primaryLabel: { color: '#ffffff', fontSize: 15, fontWeight: '900' },
+  primaryLabel: {
+    color: brandColors.surface,
+    fontSize: 15,
+    fontWeight: '900',
+  },
   privacy: {
     color: '#8ca6a3',
     fontSize: 11,
@@ -955,19 +1320,28 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   link: {
-    color: '#087e73',
+    color: brandColors.primary,
     fontWeight: '800',
     marginTop: 16,
     textAlign: 'center',
   },
   infoStrip: {
-    backgroundColor: '#e8f5f1',
+    backgroundColor: '#eaf0fb',
     borderRadius: 12,
     marginTop: 14,
     padding: 13,
   },
-  infoText: { color: '#17675f', lineHeight: 21, textAlign: 'right' },
+  infoText: {
+    color: brandColors.primaryDark,
+    lineHeight: 21,
+    textAlign: 'right',
+  },
   documentList: { marginTop: 10 },
+  documentBlock: {
+    borderBottomColor: brandColors.border,
+    borderBottomWidth: 1,
+    paddingVertical: 8,
+  },
   documentRow: {
     alignItems: 'center',
     borderBottomColor: '#e8edeb',
@@ -984,7 +1358,11 @@ const styles = StyleSheet.create({
     width: 44,
   },
   documentIconDone: { backgroundColor: '#e3f4ed' },
-  documentIconText: { color: '#087e73', fontSize: 20, fontWeight: '900' },
+  documentIconText: {
+    color: brandColors.primary,
+    fontSize: 20,
+    fontWeight: '900',
+  },
   documentCopy: { flex: 1, marginHorizontal: 12 },
   documentLabel: { color: '#172c30', fontWeight: '800', textAlign: 'right' },
   documentStatus: {
@@ -994,6 +1372,63 @@ const styles = StyleSheet.create({
     textAlign: 'right',
   },
   documentWarning: { color: '#9a5617' },
+  uploadChoices: { gap: 6 },
+  uploadChoice: {
+    alignItems: 'center',
+    backgroundColor: '#e7f2ef',
+    borderRadius: 8,
+    minWidth: 54,
+    paddingHorizontal: 9,
+    paddingVertical: 7,
+  },
+  uploadChoiceText: {
+    color: brandColors.primary,
+    fontSize: 11,
+    fontWeight: '900',
+  },
+  uploadChoiceDisabled: { opacity: 0.45 },
+  selectedFile: {
+    backgroundColor: '#f5f8fd',
+    borderColor: brandColors.border,
+    borderRadius: 10,
+    borderWidth: 1,
+    gap: 10,
+    marginTop: 8,
+    padding: 10,
+  },
+  selectedFileCopy: { gap: 3 },
+  selectedFileName: {
+    color: brandColors.text,
+    fontSize: 13,
+    fontWeight: '800',
+    textAlign: 'right',
+  },
+  selectedFileMeta: {
+    color: brandColors.textMuted,
+    fontSize: 11,
+    textAlign: 'right',
+  },
+  selectedFileActions: {
+    flexDirection: 'row-reverse',
+    gap: 8,
+  },
+  removeFileAction: {
+    alignItems: 'center',
+    borderColor: brandColors.danger,
+    borderRadius: 8,
+    borderWidth: 1,
+    flex: 1,
+    padding: 9,
+  },
+  removeFileText: { color: brandColors.danger, fontWeight: '800' },
+  sendFileAction: {
+    alignItems: 'center',
+    backgroundColor: brandColors.primary,
+    borderRadius: 8,
+    flex: 2,
+    padding: 9,
+  },
+  sendFileText: { color: '#fff', fontWeight: '900' },
   summaryRow: {
     alignItems: 'center',
     borderBottomColor: '#e6ecea',
@@ -1011,8 +1446,8 @@ const styles = StyleSheet.create({
   },
   statusCard: {
     alignItems: 'center',
-    backgroundColor: '#ffffff',
-    borderColor: '#dce5e2',
+    backgroundColor: brandColors.surface,
+    borderColor: brandColors.border,
     borderRadius: 24,
     borderWidth: 1,
     padding: 26,
@@ -1026,9 +1461,13 @@ const styles = StyleSheet.create({
     width: 82,
   },
   statusIconApproved: { backgroundColor: '#e4f5ed' },
-  statusIconText: { color: '#087e73', fontSize: 34, fontWeight: '900' },
+  statusIconText: {
+    color: brandColors.primary,
+    fontSize: 34,
+    fontWeight: '900',
+  },
   statusTitle: {
-    color: '#112d31',
+    color: brandColors.text,
     fontSize: 28,
     fontWeight: '900',
     marginTop: 20,
@@ -1049,7 +1488,11 @@ const styles = StyleSheet.create({
     paddingVertical: 11,
   },
   miniStatusLabel: { color: '#263b3f', fontSize: 12 },
-  miniStatusValue: { color: '#087e73', fontSize: 11, fontWeight: '800' },
+  miniStatusValue: {
+    color: brandColors.primary,
+    fontSize: 11,
+    fontWeight: '800',
+  },
   phaseNotice: {
     backgroundColor: '#f1f3f2',
     borderRadius: 10,
@@ -1074,13 +1517,13 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     width: 28,
   },
-  progressDotActive: { backgroundColor: '#087e73' },
+  progressDotActive: { backgroundColor: brandColors.primary },
   progressDotText: { color: '#ffffff', fontSize: 11, fontWeight: '900' },
   progressLine: { backgroundColor: '#d8e0de', flex: 1, height: 2 },
-  progressLineActive: { backgroundColor: '#087e73' },
+  progressLineActive: { backgroundColor: brandColors.accent },
   busy: {
     alignItems: 'center',
-    backgroundColor: '#112d31',
+    backgroundColor: brandColors.primaryDark,
     borderRadius: 12,
     flexDirection: 'row-reverse',
     justifyContent: 'center',

@@ -5,7 +5,7 @@
 
 ## Context
 
-Wasel needs transactionally safe order assignment, state changes, and financial
+WASSAL needs transactionally safe order assignment, state changes, and financial
 records while the domain and operating model are still evolving.
 
 ## Decision
